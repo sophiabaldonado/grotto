@@ -3,20 +3,17 @@ local cave = {}
 cave.scale = .6
 
 function cave:init()
-  self.points = {}
+  local points = {}
   local data = lovr.filesystem.read('assets/cave.obj')
   for x, y, z in data:gmatch('(-?%d*%.%d+) (-?%d*%.%d+) (-?%d*%.%d+)') do
-    table.insert(self.points, tonumber(x))
-    table.insert(self.points, tonumber(y))
-    table.insert(self.points, tonumber(z))
+    table.insert(points, { x, y, z })
   end
+
+  self.mesh = lovr.graphics.newMesh({{ 'lovrPosition', 'float', 3 }}, points, 'points', 'static')
 end
 
 function cave:draw()
-  lovr.graphics.push()
-  lovr.graphics.scale(self.scale)
-  lovr.graphics.points(self.points)
-  lovr.graphics.pop()
+  self.mesh:draw(0, 0, 0, self.scale)
 end
 
 return cave

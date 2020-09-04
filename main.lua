@@ -19,6 +19,8 @@ function lovr.update(dt)
       last.z = z
     end
   end
+
+  cave:update(dt)
 end
 
 function lovr.draw()

@@ -1,7 +1,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <stdint.h>
-#include <windows.h>
+#include <time.h>
 #include <math.h>
 
 // STL
@@ -29,12 +29,12 @@ static uint64_t wangHash64(uint64_t key) {
   return key;
 }
 
-static uint64_t state;
+static uint64_t seed;
 static double random() {
-  state ^= (state >> 12);
-  state ^= (state << 25);
-  state ^= (state >> 27);
-  uint64_t r = state * 2685821657736338717ULL;
+  seed ^= (seed >> 12);
+  seed ^= (seed << 25);
+  seed ^= (seed >> 27);
+  uint64_t r = seed * 2685821657736338717ULL;
   union { uint64_t i; double d; } u;
   u.i = ((0x3FFULL) << 52) | (r >> 12);
   return u.d - 1.;
@@ -150,8 +150,7 @@ int main(int argc, char** argv) {
   }
 
   int n = atoi(argv[2]);
-
-  QueryPerformanceCounter((LARGE_INTEGER*) &state);
+  seed = time();
 
   // Read STL file
 

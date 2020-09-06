@@ -1,8 +1,13 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <stdint.h>
+#include <string.h>
+#include <float.h>
 #include <time.h>
 #include <math.h>
+
+#define MIN(a, b) ((a) < (b)) ? (a) : (b)
+#define MAX(a, b) ((a) > (b)) ? (a) : (b)
 
 // STL
 #pragma pack(push,1)
@@ -118,29 +123,39 @@ static void tree_balance(struct tree* tree) {
   tree->root = balance(tree->nodes, 0, tree->count, 0);
 }
 
-static void range_query(struct node* nodes, uint32_t index, float* p, float range) {
+static void range_query(struct node* nodes, uint32_t index, float* p, float range, void (*cb)(uint32_t, float, void*), void* ctx) {
   if (index == ~0u) return;
   struct node* node = &nodes[index];
   if (p[node->axis] + range < node->p[node->axis]) {
-    range_query(nodes, node->left, p, range);
+    range_query(nodes, node->left, p, range, cb, ctx);
   } else if (p[node->axis] - range > node->p[node->axis]) {
-    range_query(nodes, node->right, p, range);
+    range_query(nodes, node->right, p, range, cb, ctx);
   } else {
     float dx = p[0] - node->p[0];
     float dy = p[1] - node->p[1];
     float dz = p[2] - node->p[2];
     float d2 = dx * dx + dy * dy + dz * dz;
+
     if (d2 < range * range) {
-      //
+      cb(node->index, sqrtf(d2), ctx);
     }
 
-    range_query(nodes, node->left, p, range);
-    range_query(nodes, node->right, p, range);
+    range_query(nodes, node->left, p, range, cb, ctx);
+    range_query(nodes, node->right, p, range, cb, ctx);
   }
 }
 
-static void tree_range_query(struct tree* tree, float* p, float range) {
-  range_query(tree->nodes, tree->root, p, range);
+static void tree_range_query(struct tree* tree, float* p, float range, void (*cb)(uint32_t, float, void*), void* ctx) {
+  range_query(tree->nodes, tree->root, p, range, cb, ctx);
+}
+
+// Callbacks
+struct ctx_weighter { uint32_t index; float* weight; float rmax; };
+static void weighter(uint32_t index, float distance, void* userdata) {
+  struct ctx_weighter* ctx = userdata;
+  if (index != ctx->index) {
+    *ctx->weight += powf(1.f - (MIN(distance, 2.f * ctx->rmax) / (2.f * ctx->rmax)), 8.f);
+  }
 }
 
 int main(int argc, char** argv) {
@@ -150,7 +165,7 @@ int main(int argc, char** argv) {
   }
 
   int n = atoi(argv[2]);
-  seed = time();
+  seed = time(NULL);
 
   // Read STL file
 
@@ -177,6 +192,8 @@ int main(int argc, char** argv) {
   // Sum the area of all the triangles to get the total area
   // Also store the area for each triangle
 
+  float min[3] = { FLT_MAX };
+  float max[3] = { FLT_MIN };
   float totalArea = 0.f;
   float* areas = malloc(data->count * sizeof(float));
   for (unsigned i = 0; i < data->count; i++) {
@@ -187,7 +204,17 @@ int main(int argc, char** argv) {
     float length = sqrtf(c[0] * c[0] + c[1] * c[1] + c[2] * c[2]);
     areas[i] = length / 2.f;
     totalArea += areas[i];
+    for (uint32_t j = 0; j < 3; j++) {
+      min[j] = MIN(min[j], v[0][j]);
+      min[j] = MIN(min[j], v[1][j]);
+      min[j] = MIN(min[j], v[2][j]);
+      max[j] = MAX(max[j], v[0][j]);
+      max[j] = MAX(max[j], v[1][j]);
+      max[j] = MAX(max[j], v[2][j]);
+    }
   }
+
+  float volume = (max[0] - min[0]) * (max[1] - min[1]) * (max[2] - min[2]);
 
   float* points = malloc(n * 3 * sizeof(float));
 
@@ -208,6 +235,7 @@ int main(int argc, char** argv) {
       u = 1.f - u;
       v = 1.f - v;
     }
+
     float* p[3] = { data->faces[t].vertices[0], data->faces[t].vertices[1], data->faces[t].vertices[2] };
     float a[3] = { p[0][0], p[0][1], p[0][2] };
     float b[3] = { p[1][0] - a[0], p[1][1] - a[1], p[1][2] - a[2] };
@@ -222,15 +250,37 @@ int main(int argc, char** argv) {
   tree.nodes = malloc(sizeof(struct node) * n);
   tree.count = 0;
 
-  // Insert points into the tree
   for (uint32_t i = 0; i < n; i++) {
     tree_insert(&tree, points + 3 * i, i);
   }
 
   tree_balance(&tree);
 
-  float p[3] = { 0.f, 0.f, -10.f };
-  tree_range_query(&tree, p, 5.f);
+  // Compute weights
+  float* weights = malloc(n * sizeof(float));
+  uint32_t* priorities = malloc(n * sizeof(uint32_t));
+  uint32_t* heap = malloc(n * sizeof(uint32_t));
+  for (uint32_t i = 0; i < n; i++) {
+    weights[i] = 0.f;
+    float rmax = powf(volume / (4 * sqrtf(2.f) * n), 1.f / 3.f); // Make sure n is # of uniform samples
+    struct ctx_weighter ctx = { .index = i, .weight = &weights[i], .rmax = rmax };
+    tree_range_query(&tree, points + 3 * i, 2 * rmax, weighter, &ctx);
+    priorities[i] = i;
+    heap[i] = i;
+
+    // While heap entry is bigger than parent, swap with parent and update priority map
+    uint32_t j = i;
+    uint32_t p = (j - 1) / 2;
+    while (j != 0 && weights[heap[j]] > weights[heap[p]]) {
+      priorities[heap[p]] = j;
+      priorities[heap[j]] = p;
+      uint32_t temp = heap[j];
+      heap[j] = heap[p];
+      heap[p] = temp;
+      j = p;
+      p = (j - 1) / 2;
+    }
+  }
 
   FILE* bin = fopen("points.bin", "wb+");
   if (!bin) {

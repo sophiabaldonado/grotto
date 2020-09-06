@@ -1,8 +1,11 @@
 cave = require 'cave'
+dome = require 'dome'
 io.stdout:setvbuf('no')
 
 function lovr.load()
+  lovr.headset.setClipDistance(0.1, 100)
   cave:init()
+  dome:init()
   swimspeed = 1.5
   world = { x = 0, y = 0, z = 0 }
   last = { x = 0, z = 0 }
@@ -26,7 +29,8 @@ end
 function lovr.draw()
   lovr.graphics.push()
   lovr.graphics.translate(world.x, world.y, world.z)
-  cave:draw()
+  -- cave:draw()
+  dome:draw()
   lovr.graphics.pop()
 
   for i, hand in ipairs(lovr.headset.getHands()) do

@@ -14,10 +14,26 @@ function dome:init()
   
   self.treetexture = lovr.graphics.newTexture('assets/forest.png')
   self.treematerial = lovr.graphics.newMaterial(self.treetexture, 0, 0, 0, 1)
+  self.fade = 0
+end
+
+function dome:update(dt)
+  for i, hand in ipairs(lovr.headset.getHands()) do
+    if (hand == 'hand/right') then
+      if (lovr.headset.isDown(hand, 'trigger')) then
+        self.fade = math.min(self.fade + dt, 1) -- it will fade from 0 to 1 in 4 seconds cuz of *.25
+      else
+        self.fade = math.max(self.fade - dt, 0)
+      end
+    end
+  end
 end
 
 function dome:draw()
-  lovr.graphics.setBackgroundColor(0x03030a)
+  local a = vec3(0, 0, 0)
+  local b = vec3(3 / 255, 3 / 255, 10 / 255)
+  local c = a:lerp(b, self.fade)
+  lovr.graphics.setBackgroundColor(c:unpack())
 
   self.mesh:draw(0, 0, 0, self.scale)
   lovr.graphics.circle('fill', 0, 30, -5, 1, math.pi / 2, 1, 0, 0)

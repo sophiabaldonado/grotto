@@ -24,6 +24,7 @@ function lovr.update(dt)
   end
 
   cave:update(dt)
+  dome:update(dt)
 end
 
 function lovr.draw()

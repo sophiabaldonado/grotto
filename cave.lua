@@ -77,11 +77,11 @@ function cave:update(dt)
 
   -- placeholder for when player escapes the cave
   for i, hand in ipairs(lovr.headset.getHands()) do
-    if (hand == 'hand/right') then
+    -- if (hand == 'hand/right') then
       if (lovr.headset.isDown(hand, 'a')) then
         self:exit()
       end
-    end
+    -- end
   end
 end
 

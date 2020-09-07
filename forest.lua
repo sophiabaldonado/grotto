@@ -1,6 +1,7 @@
 local forest = {}
 
 forest.scale = 2
+forest.active = false
 
 function forest:init()
   local points = {}
@@ -13,31 +14,33 @@ function forest:init()
   self.treetexture = lovr.graphics.newTexture('assets/forest.png')
   self.treematerial = lovr.graphics.newMaterial(self.treetexture, 0, 0, 0, 1)
 
-  self.music = lovr.audio.newSource('assets/forest.ogg', 'static')
+  self.ambience = lovr.audio.newSource('assets/forest.ogg', 'static')
   self.fade = 0
   self.conclude = false
 end
 
 function forest:update(dt)
-  -- placeholder
+  if not self.active then return end
+
+  -- placeholder for transitioning the trees in
   for i, hand in ipairs(lovr.headset.getHands()) do
     if (hand == 'hand/right') then
       if (lovr.headset.isDown(hand, 'trigger')) then
         self.conclude = true
-      else
-        self.conclude = false
-        self.fade = math.max(self.fade - dt * 2, 0)
+        lovr.audio.setVolume(3)
       end
     end
   end
 
   if self.conclude then
-    self.music:play()
+    self.ambience:play()
     self.fade = math.min(self.fade + dt * 1.5, 1)
   end
 end
 
 function forest:draw()
+  if not self.active then return end
+
   local a = vec3(0, 0, 0)
   local b = vec3(3 / 255, 3 / 255, 10 / 255)
   local c = a:lerp(b, self.fade)

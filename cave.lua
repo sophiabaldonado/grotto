@@ -1,6 +1,7 @@
 local cave = {}
 
 cave.scale = .6
+cave.active = false
 
 function cave:init()
   local points = {}
@@ -62,18 +63,39 @@ function cave:init()
   ]])
 
   self.shader:sendBlock('Sizes', self.sizes)
+
+  self.ambience = lovr.audio.newSource('assets/cave.ogg', 'static')
 end
 
 function cave:update(dt)
+  if not self.active then return end
+
+  self.ambience:play()
   self.feeler:send('handPosition', { lovr.headset.getPosition('hand/right') })
   self.feeler:send('dt', dt)
   lovr.graphics.compute(self.feeler, self.count)
+
+  -- placeholder for when player escapes the cave
+  for i, hand in ipairs(lovr.headset.getHands()) do
+    if (hand == 'hand/right') then
+      if (lovr.headset.isDown(hand, 'a')) then
+        self:exit()
+      end
+    end
+  end
 end
 
 function cave:draw()
+  if not self.active then return end
+
   lovr.graphics.setShader(self.shader)
   self.mesh:draw(0, 0, 0, self.scale)
   lovr.graphics.setShader()
+end
+
+function cave:exit()
+  self.active = false
+  self.ambience:stop()
 end
 
 return cave

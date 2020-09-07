@@ -88,7 +88,7 @@ function cave:update(dt)
   -- placeholder for when player escapes the cave
   for i, hand in ipairs(lovr.headset.getHands()) do
       if (lovr.headset.isDown(hand, 'a')) then
-        self:exit()
+        self.startexit = true
       end
   end
 end
@@ -108,6 +108,8 @@ end
 
 function cave:exit()
   self.active = false
+  -- todo: this should fade out but once
+  -- active is false we wont get updates
   self.ambience:stop()
 end
 

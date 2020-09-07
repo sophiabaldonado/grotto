@@ -31,13 +31,13 @@ function lovr.update(dt)
     menu:update(dt)
     if not menu.active then
       currentScene = 'cave'
-      cave.active = true
+      cave:start()
     end
   elseif currentScene == 'cave' then
     cave:update(dt)
     if not cave.active then
       currentScene = 'forest'
-      forest.active = true
+      forest:start()
     end
   elseif currentScene == 'forest' then
     forest:update(dt)

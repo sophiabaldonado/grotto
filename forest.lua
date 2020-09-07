@@ -15,8 +15,14 @@ function forest:init()
   self.treematerial = lovr.graphics.newMaterial(self.treetexture, 0, 0, 0, 1)
 
   self.ambience = lovr.audio.newSource('assets/forest.ogg', 'static')
-  self.fade = 0
+  self.ambience:setLooping(true)
+  self.ambiencevolume = 0
+  self.ambience:setVolume(self.ambiencevolume)
+
+  self.treefade = 0
   self.conclude = false
+  self.concluded = false
+  self.moonopacity = 0
 end
 
 function forest:update(dt)
@@ -27,15 +33,26 @@ function forest:update(dt)
     if (hand == 'hand/right') then
       if (lovr.headset.isDown(hand, 'trigger')) then
         self.conclude = true
-        lovr.audio.setVolume(3)
       end
     end
   end
 
   if self.conclude then
     self.ambience:play()
-    self.fade = math.min(self.fade + dt * 1.5, 1)
+    self.moonopacity = math.min(self.moonopacity + dt * .1, 1)
+    self.ambiencevolume = math.min(self.ambiencevolume + dt * .3, 5)
+    if self.moonopacity > .25 then
+      self.moon = true
+    end
   end
+
+  if self.moon then
+    if not self.concluded then      
+      self.concluded = true
+    end
+    self.treefade = math.min(self.treefade + dt * .5, 1)
+  end
+  self.ambience:setVolume(self.ambiencevolume)
 end
 
 function forest:draw()
@@ -43,17 +60,24 @@ function forest:draw()
 
   local a = vec3(0, 0, 0)
   local b = vec3(3 / 255, 3 / 255, 10 / 255)
-  local c = a:lerp(b, self.fade)
+  local c = a:lerp(b, self.treefade)
   lovr.graphics.setBackgroundColor(c:unpack())
 
   self.domemesh:draw(0, 0, 0, self.scale)
-  lovr.graphics.circle('fill', 0, 30, -5, 1, math.pi / 2, 1, 0, 0)
+
+  lovr.graphics.setColor(1.0, 1.0, 1.0, self.moonopacity)
+  lovr.graphics.circle('fill', 5, 25, -18, 1, math.pi / 3, 1, 0, 0)
+  lovr.graphics.setColor(1.0, 1.0, 1.0, 1.0)
 
   lovr.graphics.setCullingEnabled(true)
   lovr.graphics.setWinding('clockwise')
   lovr.graphics.sphere(self.treematerial, 0, 15, 0, 15)
   lovr.graphics.setWinding('counterclockwise')
   lovr.graphics.setCullingEnabled(false)
+end
+
+function forest:start()
+  self.active = true
 end
 
 return forest

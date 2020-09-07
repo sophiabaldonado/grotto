@@ -69,6 +69,7 @@ function cave:init()
   self.shader:sendBlock('Sizes', self.sizes)
 
   self.ambience = lovr.audio.newSource('assets/cave.ogg', 'static')
+  self.ambience:setLooping(true)
 end
 
 function cave:update(dt)
@@ -98,6 +99,11 @@ function cave:draw()
   lovr.graphics.setShader(self.shader)
   self.mesh:draw(0, 0, 0, self.scale)
   lovr.graphics.setShader()
+end
+
+function cave:start()
+  self.active = true
+  self.ambience:play()
 end
 
 function cave:exit()

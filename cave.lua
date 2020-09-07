@@ -4,17 +4,12 @@ cave.scale = .6
 cave.active = false
 
 function cave:init()
-  local points = {}
-  local data = lovr.filesystem.read('assets/cave.obj')
-  for x, y, z in data:gmatch('(-?%d*%.%d+) (-?%d*%.%d+) (-?%d*%.%d+)') do
-    table.insert(points, { x, y, z })
-  end
+  local data = lovr.filesystem.newBlob('points.bin')
+  self.mesh = lovr.graphics.newMesh({{ 'lovrPosition', 'float', 3 }}, data, 'points', 'static')
 
-  self.mesh = lovr.graphics.newMesh({{ 'lovrPosition', 'float', 3 }}, points, 'points', 'static')
-
-  self.count = #points
-  self.points = lovr.graphics.newShaderBlock('compute', { points = { 'vec4', self.count } }, { usage = 'static' })
-  self.points:send('points', points)
+  self.count = data:getSize() / 12
+  self.points = lovr.graphics.newShaderBlock('compute', { points = { 'float', self.count * 3 } }, { usage = 'static' })
+  self.points:send('points', data)
 
   local sizes = {}
   for i = 1, self.count do sizes[i] = 0 end
@@ -24,18 +19,27 @@ function cave:init()
   self.feeler = lovr.graphics.newComputeShader([[
     layout(local_size_x = 1, local_size_y = 1, local_size_z = 1) in;
 
-    ]] .. self.points:getShaderCode('Points') .. [[
-    ]] .. self.sizes:getShaderCode('Sizes') .. [[
+    layout(std430) buffer Points {
+      float points[ ]] .. self.count * 3 .. [[ ];
+    };
 
-    uniform vec3 handPosition;
+    layout(std430) buffer Sizes {
+      float sizes[ ]] .. self.count .. [[ ];
+    };
+
+    uniform vec3 hands[2];
     uniform float dt;
 
     void compute() {
       uint id = gl_WorkGroupID.x;
-      float dis = distance(handPosition, points[id].xyz * .6);
-      if (dis < .3) {
-        float speed = 1.f - dis / .3;
-        sizes[id] = clamp(sizes[id] + dt * 32.f * speed, 0.f, 8.f);
+      vec3 point = vec3(points[3 * id + 0], points[3 * id + 1], points[3 * id + 2]);
+      float leftDistance = distance(hands[0], point * .6);
+      float rightDistance = distance(hands[1], point * .6);
+      float d = min(leftDistance, rightDistance);
+
+      if (d < .3) {
+        float speed = 1.f - d / .3;
+        sizes[id] = clamp(sizes[id] + dt * 8.f * speed, 0.f, 1.f);
       }
     }
   ]])
@@ -44,20 +48,20 @@ function cave:init()
   self.feeler:sendBlock('Sizes', self.sizes)
 
   self.shader = lovr.graphics.newShader([[
-    ]] .. self.sizes:getShaderCode('Sizes') .. [[
+    layout(std430) buffer Sizes {
+      float sizes[ ]] .. self.count .. [[ ];
+    };
 
     out float alpha;
 
     vec4 position(mat4 projection, mat4 transform, vec4 vertex) {
       gl_PointSize = sizes[gl_VertexID];
-      alpha = sizes[gl_VertexID] / 4.f;
+      alpha = sizes[gl_VertexID];
       return projection * transform * vertex;
     }
   ]], [[
   in float alpha;
     vec4 color(vec4 graphicsColor, sampler2D image, vec2 uv) {
-      vec2 xx = 2. * gl_PointCoord - 1.;
-      if (length(xx) > 1.f) discard;
       return vec4(alpha);
     }
   ]])
@@ -71,7 +75,12 @@ function cave:update(dt)
   if not self.active then return end
 
   self.ambience:play()
-  self.feeler:send('handPosition', { lovr.headset.getPosition('hand/right') })
+
+  local hands = {}
+  local world = vec3(world.x, world.y, world.z)
+  hands[1] = vec3(lovr.headset.getPosition('hand/left')):sub(world)
+  hands[2] = vec3(lovr.headset.getPosition('hand/right')):sub(world)
+  self.feeler:send('hands', hands)
   self.feeler:send('dt', dt)
   lovr.graphics.compute(self.feeler, self.count)
 

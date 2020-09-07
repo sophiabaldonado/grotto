@@ -21,7 +21,7 @@ function dome:update(dt)
   for i, hand in ipairs(lovr.headset.getHands()) do
     if (hand == 'hand/right') then
       if (lovr.headset.isDown(hand, 'trigger')) then
-        self.fade = math.min(self.fade + dt, 1) -- it will fade from 0 to 1 in 4 seconds cuz of *.25
+        self.fade = math.min(self.fade + dt, 1)
       else
         self.fade = math.max(self.fade - dt, 0)
       end

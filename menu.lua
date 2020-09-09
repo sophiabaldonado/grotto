@@ -3,30 +3,39 @@ local menu = {}
 function menu:init()
   self.active = true
   self.dotscale = .2
-end
+  self.logoTex = lovr.graphics.newTexture('assets/grotto-logo.png')
+  self.logo = lovr.graphics.newMaterial(self.logoTex)
 
+  self.logoFade = 0
+  self.startFade = 0
+end
+     
 function menu:update(dt)
+  local time = lovr.timer.getTime()
+  
+  if time > 5 then self.logoFade = math.min(self.logoFade + dt * .1, 1) end
+  if time > 7 then self.startFade = math.min(self.startFade + dt * .1, 1) end
+
   if lovr.headset.isDown('hand/right', 'trigger') and
   lovr.headset.isDown('hand/left', 'trigger') then
     self:countdown(dt)
   else
     self.dotscale = math.min(self.dotscale + dt, .2)
   end
-
-  if self.start then
-    self.active = false
-  end
 end
 
 function menu:draw()
-  lovr.graphics.circle('fill', 0, 1.5, -2, self.dotscale)--, math.pi / 2, 1, 0, 0)
-  lovr.graphics.print('Hold Both Triggers to Start', 0, 2, -2, .1)
+  lovr.graphics.setColor(1, 1, 1, self.logoFade)
+  lovr.graphics.circle('fill', -.065, 1.5, -2, self.dotscale)
+  lovr.graphics.plane(self.logo, 0, 1.5, -2, self.logoTex:getWidth() * .002, self.logoTex:getHeight() * .002)
+  lovr.graphics.setColor(1, 1, 1, self.startFade)
+  lovr.graphics.print('Hold Both Triggers to Start', 0, 1, -2, .05)
 end
 
 function menu:countdown(dt)
   self.dotscale = math.max(self.dotscale - dt * .25, 0)
   if self.dotscale == 0 then
-    self.start = true
+    self.active = false
   end
 end
 

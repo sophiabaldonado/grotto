@@ -1,6 +1,6 @@
 local cave = {}
 
-cave.scale = .6
+cave.scale = 1
 cave.active = false
 
 function cave:init()
@@ -33,8 +33,8 @@ function cave:init()
     void compute() {
       uint id = gl_WorkGroupID.x;
       vec3 point = vec3(points[3 * id + 0], points[3 * id + 1], points[3 * id + 2]);
-      float leftDistance = distance(hands[0], point * .6);
-      float rightDistance = distance(hands[1], point * .6);
+      float leftDistance = distance(hands[0], point * ]] .. self.scale .. [[);
+      float rightDistance = distance(hands[1], point * ]] .. self.scale .. [[);
       float d = min(leftDistance, rightDistance);
 
       if (d < .3) {

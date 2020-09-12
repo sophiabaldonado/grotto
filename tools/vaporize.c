@@ -1,12 +1,11 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <stdint.h>
+#include <inttypes.h>
 #include <string.h>
 #include <float.h>
 #include <time.h>
 #include <math.h>
-
-#include <windows.h>
 
 #define MIN(a, b) ((a) < (b)) ? (a) : (b)
 #define MAX(a, b) ((a) > (b)) ? (a) : (b)
@@ -17,6 +16,8 @@ static float* points;
 static float* weights;
 static uint32_t* priorities;
 static uint32_t* heap;
+
+static uint32_t* order; // final point index order
 
 // STL
 #pragma pack(push,1)
@@ -31,23 +32,6 @@ struct stl {
 };
 #pragma pack(pop)
 
-// Timing
-static LARGE_INTEGER start, end;
-static double frequency;
-static void tick() {
-  if (frequency == 0.) {
-    QueryPerformanceFrequency(&start);
-    frequency = (double) start.QuadPart;
-  }
-
-  QueryPerformanceCounter(&start);
-}
-
-static void tock(const char* label) {
-  QueryPerformanceCounter(&end);
-  printf("[%.4f] %s\n", (end.QuadPart - start.QuadPart) / frequency, label);
-}
-
 // RNG
 static uint64_t wangHash64(uint64_t key) {
   key = (~key) + (key << 21); // key = (key << 21) - key - 1;
@@ -61,7 +45,7 @@ static uint64_t wangHash64(uint64_t key) {
 }
 
 static uint64_t seed;
-static double random() {
+static double rd() {
   seed ^= (seed >> 12);
   seed ^= (seed << 25);
   seed ^= (seed >> 27);
@@ -210,10 +194,10 @@ int main(int argc, char** argv) {
 
   uint32_t count = atoi(argv[2]);
   seed = time(NULL);
+  setvbuf(stdout, NULL, _IONBF, 0);
 
   // Read STL file
 
-  tick();
   FILE* file = fopen(argv[1], "rb");
 
   if (!file) {
@@ -231,14 +215,12 @@ int main(int argc, char** argv) {
   }
 
   fclose(file);
-  tock("IO");
 
   // Compute the area of the mesh
   // For each triangle, the area is the length of the cross product of 2 of its vectors divided by 2
   // Sum the area of all the triangles to get the total area
   // Also store the area for each triangle
 
-  tick();
   float min[3] = { FLT_MAX };
   float max[3] = { FLT_MIN };
   float totalArea = 0.f;
@@ -260,25 +242,25 @@ int main(int argc, char** argv) {
       max[j] = MAX(max[j], v[2][j]);
     }
   }
-  float volume = (max[0] - min[0]) * (max[1] - min[1]) * (max[2] - min[2]);
-  tock("MESH");
+  float bounds[3] = { max[0] - min[0], max[1] - min[1], max[2] - min[2] };
+  float center[3] = { (min[0] + max[0]) / 2.f, (min[1] + max[1]) / 2.f, (min[2] + max[2]) / 2.f };
+  float volume = bounds[0] * bounds[1] * bounds[2];
 
-  tick();
   uint32_t n = count * MULTIPLIER;
   points = malloc(n * 3 * sizeof(float));
   for (int i = 0; i < n; i++) {
 
     // Pick a random triangle weighted based on their areas
     int t = 0;
-    float r = random() * totalArea;
+    float r = rd() * totalArea;
     while (r > areas[t]) {
       r -= areas[t];
       t++;
     }
 
     // Pick a random uniform barycentric point on that triangle
-    float u = random();
-    float v = random();
+    float u = rd();
+    float v = rd();
     if (u + v > 1.f) {
       u = 1.f - u;
       v = 1.f - v;
@@ -292,10 +274,8 @@ int main(int argc, char** argv) {
     points[i * 3 + 1] = a[1] + u * b[1] + v * c[1];
     points[i * 3 + 2] = a[2] + u * b[2] + v * c[2];
   }
-  tock("POINTS");
 
   // Put points into kdtree
-  tick();
   struct node* tree = malloc(sizeof(struct node) * n);
   for (uint32_t i = 0; i < n; i++) {
     struct node* node = &tree[i];
@@ -304,10 +284,8 @@ int main(int argc, char** argv) {
     node->index = i;
   }
   uint32_t root = tree_build(tree, 0, n, 0);
-  tock("TREE");
 
   // Compute ordered weights
-  tick();
   weights = malloc(n * sizeof(float));
   priorities = malloc(n * sizeof(uint32_t));
   heap = malloc(n * sizeof(uint32_t));
@@ -342,24 +320,31 @@ int main(int argc, char** argv) {
     }
   }
   printf("\n");
-  tock("WEIGHT");
 
   // Sample elimination:
   // Use heap to find heaviest element and remove it
   // Do a range query and reduce the weight of its neighbors
-  tick();
   uint32_t i = 0;
-  while (n > count) {
+  order = malloc(count * sizeof(uint32_t));
+  while (n > 0) {
     uint32_t index = heap[0];
     priorities[index] = ~0u;
-    heap[0] = heap[n - 1];
-    priorities[heap[0]] = 0;
-    heapify(0, n - 1);
-    struct ctx_deweighter ctx = { .index = index, .n = n - 1, .rmax = rmax };
-    tree_query(tree, root, points + 3 * index, 2 * rmax, deweighter, &ctx);
+
+    if (n > 1) {
+      heap[0] = heap[n - 1];
+      priorities[heap[0]] = 0;
+      heapify(0, n - 1);
+      struct ctx_deweighter ctx = { .index = index, .n = n - 1, .rmax = rmax };
+      tree_query(tree, root, points + 3 * index, 2 * rmax, deweighter, &ctx);
+    }
+
+    if (n <= count) {
+      order[n - 1] = index;
+    }
+
     n--;
 
-    uint32_t prc = i / ((float) count * MULTIPLIER - count) * 10.f;
+    uint32_t prc = (float) i / (count * MULTIPLIER) * 10.f;
     if (prc != percent) {
       percent = prc;
       printf(".");
@@ -367,24 +352,94 @@ int main(int argc, char** argv) {
     i++;
   }
   printf("\n");
-  tock("REMOVE");
 
-  tick();
+  float* noiseness = malloc(count * sizeof(float));
+  for (uint32_t i = 0; i < count; i++) {
+    noiseness[i] = (float) i / count;
+  }
+
+  struct onode {
+    uint32_t start;
+    uint32_t count;
+  };
+
+  struct onode octree[8];
+  for (uint32_t i = 0; i < 8; i++) {
+    octree[i].start = 0;
+    octree[i].count = 0;
+  }
+
+  float* c = center;
+  for (uint32_t i = 0; i < count; i++) {
+    float* p = points + 3 * order[i];
+    uint64_t key = ((p[0] > c[0]) << 2) | ((p[1] > c[1]) << 1) | p[2] > c[2];
+    octree[key].count++;
+  }
+
+  for (uint32_t i = 1; i < 8; i++) {
+    octree[i].start = octree[i - 1].start + octree[i - 1].count;
+  }
+
+  for (uint32_t o = 0; o < 8 - 1; o++) {
+    struct onode* node = &octree[o];
+    uint32_t i = node->start;
+    uint32_t j = 0;
+
+    // Skip any points that are already correctly in this node
+    while (i < node->start + node->count) {
+      float* p = points + 3 * order[i];
+      uint64_t key = ((p[0] > c[0]) << 2) | ((p[1] > c[1]) << 1) | p[2] > c[2];
+      if (key != o) {
+        break;
+      } else {
+        i++;
+      }
+    }
+
+    if (j <= i) j = i + 1;
+
+    // While there are still points to add to this node
+    while (i < node->start + node->count) {
+
+      // Find the next point j that does belong in this node, starting after i
+      for (;;) {
+        float* p = points + 3 * order[j];
+        uint64_t key = ((p[0] > c[0]) << 2) | ((p[1] > c[1]) << 1) | p[2] > c[2];
+        if (key == o) {
+          break;
+        } else {
+          j++;
+        }
+      }
+
+      // Swap i and j in the final point ordering
+      uint32_t temp = order[i];
+      order[i] = order[j];
+      order[j] = temp;
+
+      float t = noiseness[i];
+      noiseness[i] = noiseness[j];
+      noiseness[j] = t;
+      i++;
+    }
+  }
+
+  for (uint32_t o = 0; o < 8; o++) {
+    printf("[%d,%d]\n", octree[o].start, octree[o].count);
+  }
+
   FILE* bin = fopen("points.bin", "wb+");
   if (!bin) {
     printf("Can't open %s\n", "points.bin");
     return 1;
   }
 
-  for (uint32_t i = 0; i < count * MULTIPLIER; i++) {
-    if (priorities[i] != ~0u) {
-      fwrite(points + 3 * i, 1, 12, bin);
-    }
+  for (uint32_t i = 0; i < count; i++) {
+    fwrite(points + 3 * order[i], 1, 12, bin);
+    fwrite(noiseness + i, 1, 4, bin);
   }
 
-  //fwrite(points, sizeof(char), n * 3 * sizeof(float), bin);
   fclose(bin);
-  tock("OUT");
 
   free(data);
   free(points);
@@ -392,6 +447,5 @@ int main(int argc, char** argv) {
   free(priorities);
   free(heap);
   printf("Density: %fs/m\n", count / totalArea);
-  printf("rmax: %f\n", rmax);
   return 0;
 }

@@ -9,10 +9,10 @@ function menu:init()
   self.logoFade = 0
   self.startFade = 0
 end
-     
+
 function menu:update(dt)
   local time = lovr.timer.getTime()
-  
+
   if time > 5 then self.logoFade = math.min(self.logoFade + dt * .1, 1) end
   if time > 7 then self.startFade = math.min(self.startFade + dt * .1, 1) end
 

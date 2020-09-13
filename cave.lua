@@ -9,7 +9,7 @@ function cave:init()
   self.feeler:sendBlock('Points', self.points)
   self.feeler:sendBlock('Sizes', self.sizes)
 
-  self.shader = lovr.graphics.newShader('assets/point.glsl')
+  self.shader = lovr.graphics.newShader('assets/point.glsl', 'assets/point.glsl')
   self.shader:sendBlock('Points', self.points)
   self.shader:sendBlock('Sizes', self.sizes)
 

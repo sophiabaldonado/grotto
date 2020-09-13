@@ -21,8 +21,8 @@ void compute() {
   float rightDistance = distance(hands[1], point);
   float d = min(leftDistance, rightDistance);
 
-  if (d < .3) {
-    float speed = 1.f - d / .3;
-    sizes[index] = clamp(sizes[index] + dt * 8.f * speed, 0.f, 1.f);
+  if (d < .5) {
+    float factor = pow(clamp(1.f - d / .3, 0., 1.), 2.f);
+    sizes[index] = min(sizes[index] + dt * 8.f * factor, 1.f);
   }
 }

@@ -18,6 +18,7 @@ static uint32_t* priorities;
 static uint32_t* heap;
 
 static uint32_t* order; // final point index order
+static float* noiseness; // global order index
 
 // STL
 #pragma pack(push,1)
@@ -186,6 +187,108 @@ static void deweighter(uint32_t index, float distance2, void* userdata) {
   }
 }
 
+// Octree
+
+struct onode {
+  uint32_t start;
+  uint32_t count;
+};
+
+static void octreeify(uint32_t parent, float center[3], float size[3], uint32_t start, uint32_t count, FILE* handle) {
+  struct onode nodes[8];
+  memset(nodes, 0, sizeof(nodes));
+
+  float* c = center;
+  for (uint32_t i = start; i < start + count; i++) {
+    float* p = points + 3 * order[i];
+    uint32_t key = ((p[0] > c[0]) << 2) | ((p[1] > c[1]) << 1) | p[2] > c[2];
+    nodes[key].count++;
+  }
+
+  for (uint32_t i = 0, total = 0; i < 8; total += nodes[i++].count) {
+    nodes[i].start = start + total;
+  }
+
+  for (uint32_t o = 0; o < 8 - 1; o++) {
+    struct onode* node = &nodes[o];
+    uint32_t i = node->start;
+    uint32_t j = 0;
+
+    // Skip any points that are already correctly in this node
+    while (i < node->start + node->count) {
+      float* p = points + 3 * order[i];
+      uint64_t key = ((p[0] > c[0]) << 2) | ((p[1] > c[1]) << 1) | p[2] > c[2];
+      if (key != o) {
+        break;
+      } else {
+        i++;
+      }
+    }
+
+    if (j <= i) j = i + 1;
+
+    // While there are still points to add to this node
+    while (i < node->start + node->count) {
+
+      // Find the next point j that does belong in this node, starting after i
+      for (;;) {
+        float* p = points + 3 * order[j];
+        uint64_t key = ((p[0] > c[0]) << 2) | ((p[1] > c[1]) << 1) | p[2] > c[2];
+        if (key == o) {
+          break;
+        } else {
+          j++; // Why not swap it into the right node immediately instead of skipping it?
+               // Would want to have per-node cursors so you know where to put it
+               // You're just going to end up swapping this node later on anyway
+               // I guess the ordering is no longer stable this way, but I don't think that matters
+        }
+      }
+
+      // Swap i and j in the final point ordering
+      uint32_t temp = order[i];
+      order[i] = order[j];
+      order[j] = temp;
+
+      float t = noiseness[i];
+      noiseness[i] = noiseness[j];
+      noiseness[j] = t;
+      i++;
+    }
+  }
+
+  // Recurse
+  for (uint32_t i = 0; i < 8; i++) {
+    uint32_t key = (parent << 3) | i;
+
+    float subSize[3] = { size[0] / 2.f, size[1] / 2.f, size[2] / 2.f };
+    float subCenter[3];
+    subCenter[0] = center[0] - subSize[0] + ((i & 0x4) ? size[0] : 0);
+    subCenter[1] = center[1] - subSize[1] + ((i & 0x2) ? size[1] : 0);
+    subCenter[2] = center[2] - subSize[2] + ((i & 0x1) ? size[2] : 0);
+    float minx = subCenter[0] - subSize[0];
+    float maxx = subCenter[0] + subSize[0];
+    float miny = subCenter[1] - subSize[1];
+    float maxy = subCenter[1] + subSize[1];
+    float minz = subCenter[2] - subSize[2];
+    float maxz = subCenter[2] + subSize[2];
+
+    int recurse = nodes[i].count > 16384 || (size[0] > 3. || size[1] > 3. || size[2] > 3.);
+    recurse = 0;
+    uint32_t start = nodes[i].start + 1; // Lua
+    uint32_t count = nodes[i].count;
+
+    if (nodes[i].count > 0 && !recurse) {
+      fprintf(handle, "  { key = %d, start = %d, count = %d, aabb = { %f, %f, %f, %f, %f, %f }, leaf = true },\n", key, start, count, minx, maxx, miny, maxy, minz, maxz);
+    } else {
+      fprintf(handle, "  { key = %d, aabb = { %f, %f, %f, %f, %f, %f } },\n", key, minx, maxx, miny, maxy, minz, maxz);
+    }
+
+    if (recurse) {
+      octreeify(key, subCenter, subSize, nodes[i].start, nodes[i].count, handle);
+    }
+  }
+}
+
 int main(int argc, char** argv) {
   if (argc < 3) {
     printf("Usage: %s [model.stl] [n]\n", argv[0]);
@@ -253,7 +356,7 @@ int main(int argc, char** argv) {
     // Pick a random triangle weighted based on their areas
     int t = 0;
     float r = rd() * totalArea;
-    while (r > areas[t]) {
+    while (r > areas[t] && t < data->count - 1) {
       r -= areas[t];
       t++;
     }
@@ -353,80 +456,29 @@ int main(int argc, char** argv) {
   }
   printf("\n");
 
-  float* noiseness = malloc(count * sizeof(float));
+  noiseness = malloc(count * sizeof(float));
   for (uint32_t i = 0; i < count; i++) {
     noiseness[i] = (float) i / count;
   }
 
-  struct onode {
-    uint32_t start;
-    uint32_t count;
-  };
-
-  struct onode octree[8];
-  for (uint32_t i = 0; i < 8; i++) {
-    octree[i].start = 0;
-    octree[i].count = 0;
+  FILE* meta = fopen("points.lua", "w+");
+  if (!meta) {
+    printf("Can't open %s\n", "points.lua");
+    return 1;
   }
 
-  float* c = center;
-  for (uint32_t i = 0; i < count; i++) {
-    float* p = points + 3 * order[i];
-    uint64_t key = ((p[0] > c[0]) << 2) | ((p[1] > c[1]) << 1) | p[2] > c[2];
-    octree[key].count++;
-  }
 
-  for (uint32_t i = 1; i < 8; i++) {
-    octree[i].start = octree[i - 1].start + octree[i - 1].count;
-  }
-
-  for (uint32_t o = 0; o < 8 - 1; o++) {
-    struct onode* node = &octree[o];
-    uint32_t i = node->start;
-    uint32_t j = 0;
-
-    // Skip any points that are already correctly in this node
-    while (i < node->start + node->count) {
-      float* p = points + 3 * order[i];
-      uint64_t key = ((p[0] > c[0]) << 2) | ((p[1] > c[1]) << 1) | p[2] > c[2];
-      if (key != o) {
-        break;
-      } else {
-        i++;
-      }
-    }
-
-    if (j <= i) j = i + 1;
-
-    // While there are still points to add to this node
-    while (i < node->start + node->count) {
-
-      // Find the next point j that does belong in this node, starting after i
-      for (;;) {
-        float* p = points + 3 * order[j];
-        uint64_t key = ((p[0] > c[0]) << 2) | ((p[1] > c[1]) << 1) | p[2] > c[2];
-        if (key == o) {
-          break;
-        } else {
-          j++;
-        }
-      }
-
-      // Swap i and j in the final point ordering
-      uint32_t temp = order[i];
-      order[i] = order[j];
-      order[j] = temp;
-
-      float t = noiseness[i];
-      noiseness[i] = noiseness[j];
-      noiseness[j] = t;
-      i++;
-    }
-  }
-
-  for (uint32_t o = 0; o < 8; o++) {
-    printf("[%d,%d]\n", octree[o].start, octree[o].count);
-  }
+  float halfBounds[3] = { bounds[0] / 2.f, bounds[1] / 2.f, bounds[2] / 2.f };
+  float minx = center[0] - bounds[0];
+  float maxx = center[0] + bounds[0];
+  float miny = center[1] - bounds[1];
+  float maxy = center[1] + bounds[1];
+  float minz = center[2] - bounds[2];
+  float maxz = center[2] + bounds[2];
+  fprintf(meta, "return {\n  { key = 1, aabb = { %f, %f, %f, %f, %f, %f } },\n", minx, maxx, miny, maxy, minz, maxz);
+  octreeify(0x1, center, halfBounds, 0, count, meta);
+  fputs("}\n", meta);
+  fclose(meta);
 
   FILE* bin = fopen("points.bin", "wb+");
   if (!bin) {
@@ -446,6 +498,8 @@ int main(int argc, char** argv) {
   free(weights);
   free(priorities);
   free(heap);
+  free(order);
+  free(noiseness);
   printf("Density: %fs/m\n", count / totalArea);
   return 0;
 }

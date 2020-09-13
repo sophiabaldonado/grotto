@@ -11,16 +11,17 @@
 
   uniform vec3 head;
 
-  float lod() {
-    float d = distance(head, points[gl_VertexID].xyz);
-    float pointFill = pow(1. - clamp(d / 2., 0., 1.), 3.);
-    return 1. - smoothstep(pointFill - .05, pointFill, 1. - points[gl_VertexID].w);
-  }
-
   vec4 position(mat4 projection, mat4 transform, vec4 vertex) {
+    vec4 point = points[gl_VertexID];
+    /*float lod = max(distance(head, point.xyz) / 2. - 1., 0.);
+    float threshold = 1. / pow(2., lod);
+    float factor = sizes[gl_VertexID] * (1. - smoothstep(threshold * .95, threshold, point.w));
+    if (factor < .01) {
+      return vec4(0.);
+    }*/
+    vec4 p = projection * transform * vec4(point.xyz, 1.);
     alpha = sizes[gl_VertexID];
-    vec4 p = projection * transform * vec4(points[gl_VertexID].xyz, 1.);
-    gl_PointSize = 2. * sizes[gl_VertexID] / p.w;
+    gl_PointSize = 2. / p.w;
     return p;
   }
 #endif

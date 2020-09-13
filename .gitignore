@@ -1,2 +1,4 @@
 tools/vaporize.exe
-points.bin
+tools/vaporize
+points*.bin
+points*.lua

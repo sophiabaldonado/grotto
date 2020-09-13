@@ -1,6 +1,7 @@
 menu = require 'menu'
 cave = require 'cave'
 forest = require 'forest'
+hands = require 'hands'
 io.stdout:setvbuf('no')
 
 function lovr.load()
@@ -9,6 +10,7 @@ function lovr.load()
   cave:init()
   forest:init()
   currentScene = 'menu'
+  hands:init()
   swimspeed = 1.5
   world = { x = 0, y = 0, z = 0 }
   last = { x = 0, z = 0 }
@@ -27,6 +29,8 @@ function lovr.update(dt)
     end
   end
 
+  hands:update(dt)
+
   if currentScene == 'menu' then
     menu:update(dt)
     if not menu.active then
@@ -42,7 +46,6 @@ function lovr.update(dt)
   elseif currentScene == 'forest' then
     forest:update(dt)
   end
-
 end
 
 function lovr.draw()
@@ -51,7 +54,7 @@ function lovr.draw()
   drawCurrentScene()
   lovr.graphics.pop()
 
-  drawHands()
+  hands:draw()
 end
 
 function move(x, z)
@@ -66,14 +69,5 @@ function drawCurrentScene()
     cave:draw()
   elseif currentScene == 'forest' then
     forest:draw()
-  end
-end
-
-function drawHands()
-  for i, hand in ipairs(lovr.headset.getHands()) do
-    local x, y, z, angle, ax, ay, az = lovr.headset.getPose(hand)
-    lovr.graphics.setColor(0.85, 0.85, 0.85, 0.5)
-    lovr.graphics.sphere(x, y, z, .025, angle, ax, ay, az)
-    lovr.graphics.setColor(1.0, 1.0, 1.0, 1.0)
   end
 end

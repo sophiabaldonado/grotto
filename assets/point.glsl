@@ -19,14 +19,16 @@
 
   vec4 position(mat4 projection, mat4 transform, vec4 vertex) {
     alpha = sizes[gl_VertexID];
-    gl_PointSize = sizes[gl_VertexID];
-    return projection * transform * vec4(points[gl_VertexID].xyz, 1.);
+    vec4 p = projection * transform * vec4(points[gl_VertexID].xyz, 1.);
+    gl_PointSize = 2. * sizes[gl_VertexID] / p.w;
+    return p;
   }
 #endif
 
 #ifdef PIXEL
   in float alpha;
   vec4 color(vec4 graphicsColor, sampler2D image, vec2 uv) {
+    if (length(2. * gl_PointCoord - 1.) > 1.f) discard;
     return vec4(alpha);
   }
 #endif

@@ -49,12 +49,12 @@ function lovr.update(dt)
 end
 
 function lovr.draw()
+  hands:draw()
+
   lovr.graphics.push()
   lovr.graphics.translate(world.x, world.y, world.z)
   drawCurrentScene()
   lovr.graphics.pop()
-
-  hands:draw()
 end
 
 function move(x, z)

@@ -26,8 +26,8 @@ function hands:draw()
   lovr.graphics.setShader(self.shader)
   for i, hand in ipairs({ 'left', 'right' }) do
     if lovr.headset.isTracked(hand) then
-      if self.models[hand] and lovr.headset.animate(hand, model) then
-        model:draw(mat4(lovr.headset.getPose(hand)))
+      if self.models[hand] and lovr.headset.animate(hand, self.models[hand]) then
+        self.models[hand]:draw(mat4(lovr.headset.getPose(hand)))
       else
         lovr.graphics.sphere(mat4(lovr.headset.getPose(hand)):scale(.025))
       end

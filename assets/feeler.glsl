@@ -21,7 +21,7 @@ void compute() {
   float rightDistance = distance(hands[1], point);
   float d = min(leftDistance, rightDistance);
 
-  if (d < .5) {
+  if (d < .3) {
     float factor = pow(clamp(1.f - d / .3, 0., 1.), 2.f);
     sizes[index] = min(sizes[index] + dt * 8.f * factor, 1.f);
   }

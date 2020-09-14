@@ -1,4 +1,4 @@
 tools/vaporize.exe
 tools/vaporize
-points*.bin
-points*.lua
+assets/*.bin
+assets/*.lua

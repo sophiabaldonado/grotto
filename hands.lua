@@ -16,7 +16,7 @@ end
 
 function hands:update(dt)
   for i, hand in ipairs({ 'left', 'right' }) do
-    if not self.models[hand] then
+    if lovr.headset.isTracked(hand) and not self.models[hand] then
       self.models[hand] = lovr.headset.newModel(hand, { animated = true })
     end
   end
@@ -24,9 +24,13 @@ end
 
 function hands:draw()
   lovr.graphics.setShader(self.shader)
-  for hand, model in pairs(self.models) do
-    if lovr.headset.isTracked(hand) and lovr.headset.animate(hand, model) then
-      model:draw(mat4(lovr.headset.getPose(hand)))
+  for i, hand in ipairs({ 'left', 'right' }) do
+    if lovr.headset.isTracked(hand) then
+      if self.models[hand] and lovr.headset.animate(hand, self.models[hand]) then
+        self.models[hand]:draw(mat4(lovr.headset.getPose(hand)))
+      else
+        lovr.graphics.sphere(mat4(lovr.headset.getPose(hand)):scale(.025))
+      end
     end
   end
   lovr.graphics.setShader()

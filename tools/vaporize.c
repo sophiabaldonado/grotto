@@ -273,7 +273,6 @@ static void octreeify(uint32_t parent, float center[3], float size[3], uint32_t 
     float maxz = subCenter[2] + subSize[2];
 
     int recurse = nodes[i].count > 16384 || (size[0] > 3. || size[1] > 3. || size[2] > 3.);
-    recurse = 0;
     uint32_t start = nodes[i].start + 1; // Lua
     uint32_t count = nodes[i].count;
 

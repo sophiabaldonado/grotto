@@ -3,7 +3,8 @@ local cave = {}
 local octree = require 'points'
 octree.lookup = {}
 for i = 1, #octree do
-  octree.lookup[i] = octree[octree[i].key]
+  octree.lookup[octree[i].key] = octree[i]
+  octree[i].revealed = false
 end
 
 local function clamp(x, min, max)
@@ -11,7 +12,7 @@ local function clamp(x, min, max)
 end
 
 local function testSphereBox(aabb, sphere, r2)
-  local minx, maxx, miny, maxy, minz, maxz = unpack(node.aabb)
+  local minx, maxx, miny, maxy, minz, maxz = unpack(aabb)
   local x = clamp(sphere.x, minx, maxx)
   local y = clamp(sphere.y, miny, maxy)
   local z = clamp(sphere.z, minz, maxz)
@@ -20,7 +21,8 @@ local function testSphereBox(aabb, sphere, r2)
 end
 
 function cave:init()
-  cave.active = false
+  self.active = false
+  self.frustum = lovr.math.newMat4()
 
   self:load()
 
@@ -39,6 +41,8 @@ end
 function cave:update(dt)
   if not self.active then return end
 
+  self:updateFrustum()
+
   self.ambience:play()
 
   local world = vec3(world.x, world.y, world.z)
@@ -53,26 +57,36 @@ function cave:update(dt)
 
   local r2 = .3 * .3
   local rooms = { octree }
-  for i, room in ipairs(rooms) do
+  for _, room in ipairs(rooms) do
     local function visit(node)
-      if not testSphereBox(node.aabb, hands[1], r2) and not testSphereBox(node.aabb, hands[2], r2) then
+      if not node or (not testSphereBox(node.aabb, hands[1], r2) and not testSphereBox(node.aabb, hands[2], r2)) then
         return
       end
 
-      local child = key * 8
-      local minx, maxx, miny, maxy, minz, maxz = unpack(aabb)
-      local cx, cy, cz = (minx + maxx) / 2, (miny + maxy) / 2, (minz + maxz) / 2
+      node.revealed = true
+
+      if node.leaf then
+        self.feeler:send('offset', node.start - 1)
+        lovr.graphics.compute(self.feeler, node.count)
+      else
+        for child = node.key * 8, node.key * 8 + 7 do
+          visit(room.lookup[child])
+        end
+      end
     end
 
-    visit(room.nodes[1])
+    visit(room[1])
   end
 
+  --[[
   for i = 0, self.count - 1, 65535 do
     self.feeler:send('offset', i)
     lovr.graphics.compute(self.feeler, math.min(self.count - i, 65535))
   end
+  ]]
 
   self.shader:send('head', vec3(lovr.headset.getPosition()):sub(world))
+  self.shader:send('world', world)
 
   -- placeholder for when player escapes the cave
   for i, hand in ipairs(lovr.headset.getHands()) do
@@ -86,22 +100,37 @@ function cave:draw()
   if not self.active then return end
 
   lovr.graphics.setBlendMode()
+  lovr.graphics.setCullingEnabled(true)
   lovr.graphics.setShader(self.shader)
-  self.mesh:draw()
-  lovr.graphics.setShader()
 
-  --[[local head = vec3(lovr.headset.getPosition()):sub(vec3(world.x, world.y, world.z))
-  for i = 1, #octree do
-    if octree[i].leaf then
-      local minx, maxx, miny, maxy, minz, maxz = unpack(octree[i].aabb)
-      local center = vec3((minx + maxx) / 2, (miny + maxy) / 2, (minz + maxz) / 2)
-      if head:distance(center) < 4 then
-        self.mesh:setDrawRange(octree[i].start, octree[i].count)
-        self.mesh:draw()
+  local draws = {}
+
+  local function visit(node)
+    if not node then return end
+
+    -- Touch culling: don't render nodes that haven't been revealed yet
+    -- Frustum culling: don't render nodes outside the view frustum
+    if not node.revealed then return end
+    if not self:canSee(node.aabb) then return end
+
+    if node.leaf then
+      draws[#draws + 1] = { node.start, node.count }
+    else
+      for child = node.key * 8, node.key * 8 + 7 do
+        visit(octree.lookup[child])
       end
     end
   end
-  lovr.graphics.setShader()]]
+
+  visit(octree[1])
+
+  for i = 1, #draws do
+    self.mesh:setDrawRange(unpack(draws[i]))
+    self.mesh:draw()
+  end
+
+  --self.mesh:multidraw(draws)
+  lovr.graphics.setShader()
 end
 
 function cave:start()
@@ -125,6 +154,87 @@ function cave:load()
   self.sizes = lovr.graphics.newShaderBlock('compute', sizeFormat, { zero = true })
   self.points = lovr.graphics.newShaderBlock('compute', pointFormat, { usage = 'static' })
   self.points:send('points', blob)
+end
+
+function cave:updateFrustum()
+  local lleft, lright, ltop, lbottom = lovr.headset.getViewAngles(1)
+  local rleft, rright, rtop, rbottom = lovr.headset.getViewAngles(2)
+
+  if not lleft or not rleft then return end
+
+  -- Fix vrapi bug
+  lleft, lright, ltop, lbottom = -math.rad(lleft), math.rad(lright), math.rad(ltop), -math.rad(lbottom)
+  rleft, rright, rtop, rbottom = -math.rad(rleft), math.rad(rright), math.rad(rtop), -math.rad(rbottom)
+
+  local left = vec3(lovr.headset.getViewPose(1))
+  local right = vec3(lovr.headset.getViewPose(2))
+
+  local near = .1
+  local far = 100
+  local ipd = left:distance(right)
+  local zoffset = ipd / (rright - lleft)
+  local bottom = math.min(lbottom, rbottom)
+  local top = math.max(ltop, rtop)
+  local n = near + zoffset
+  local f = far + zoffset
+  local idx = 1 / (rright - lleft)
+  local idy = 1 / (top - bottom)
+  local idz = 1 / (f - n)
+  local sx = rright + lleft
+  local sy = top + bottom
+  local P = mat4(2 * idx, 0, 0, 0, 0, 2 * idy, 0, 0, sx * idx, sy * idy, -f * idz, -1, 0, 0, -f * n * idz, 0)
+
+  local center = vec3(left):add(right):mul(.5)
+  local rotate = quat(lovr.headset.getOrientation())
+  local view = mat4(center, rotate)
+  local V = mat4(-world.x, -world.y, -world.z):mul(view):translate(0, 0, zoffset):invert()
+  self.frustum:set(2 * idx, 0, 0, 0, 0, 2 * idy, 0, 0, sx * idx, sy * idy, -f * idz, -1, 0, 0, -f * n * idz, 0)
+  self.frustum:mul(V)
+end
+
+function cave:canSee(aabb)
+  local points = {
+    vec4(aabb[1], aabb[3], aabb[5], 1),
+    vec4(aabb[1], aabb[3], aabb[6], 1),
+    vec4(aabb[1], aabb[4], aabb[5], 1),
+    vec4(aabb[1], aabb[4], aabb[6], 1),
+    vec4(aabb[2], aabb[3], aabb[5], 1),
+    vec4(aabb[2], aabb[3], aabb[6], 1),
+    vec4(aabb[2], aabb[4], aabb[5], 1),
+    vec4(aabb[2], aabb[4], aabb[6], 1)
+  }
+
+  for i = 1, 8 do
+    self.frustum:mul(points[i])
+  end
+
+  local inside
+
+  inside = false
+  for i = 1, 8 do if points[i].x > -points[i].w then inside = true break end end
+  if not inside then return false end
+
+  inside = false
+  for i = 1, 8 do if points[i].x < points[i].w then inside = true break end end
+  if not inside then return false end
+
+  inside = false
+  for i = 1, 8 do if points[i].y > -points[i].w then inside = true break end end
+  if not inside then return false end
+
+  inside = false
+  for i = 1, 8 do if points[i].y < points[i].w then inside = true break end end
+  if not inside then return false end
+
+  inside = false
+  for i = 1, 8 do if points[i].z > -points[i].w then inside = true break end end
+  if not inside then return false end
+
+  inside = false
+  for i = 1, 8 do if points[i].z < points[i].w then inside = true break end end
+  if not inside then return false end
+
+  return true
 end
 
 return cave

@@ -10,6 +10,7 @@
   };
 
   uniform vec3 head;
+  uniform vec3 world;
 
   vec4 position(mat4 projection, mat4 transform, vec4 vertex) {
     vec4 point = points[gl_VertexID];
@@ -19,7 +20,7 @@
     if (factor < .01) {
       return vec4(0.);
     }*/
-    vec4 p = projection * transform * vec4(point.xyz, 1.);
+    vec4 p = lovrProjection * lovrView * vec4(point.xyz + world, 1.);
     alpha = sizes[gl_VertexID];
     gl_PointSize = 2. / p.w;
     return p;

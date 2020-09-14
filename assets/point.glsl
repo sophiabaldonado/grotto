@@ -14,12 +14,12 @@
 
   vec4 position(mat4 projection, mat4 transform, vec4 vertex) {
     vec4 point = points[gl_VertexID];
-    /*float lod = max(distance(head, point.xyz) / 2. - 1., 0.);
+    float lod = max(distance(head, point.xyz) / 2. - 1., 0.);
     float threshold = 1. / pow(2., lod);
     float factor = sizes[gl_VertexID] * (1. - smoothstep(threshold * .95, threshold, point.w));
     if (factor < .01) {
       return vec4(0.);
-    }*/
+    }
     vec4 p = lovrProjection * lovrView * vec4(point.xyz + world, 1.);
     alpha = sizes[gl_VertexID];
     gl_PointSize = 2. / p.w;

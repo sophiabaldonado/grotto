@@ -20,6 +20,16 @@ local function testSphereBox(aabb, sphere, r2)
   return dx * dx + dy * dy + dz * dz < r2
 end
 
+local function getDetail(aabb, head)
+  local minx, maxx, miny, maxy, minz, maxz = unpack(aabb)
+  local x = clamp(head.x, minx, maxx)
+  local y = clamp(head.y, miny, maxy)
+  local z = clamp(head.z, minz, maxz)
+  local distance = head:distance(vec3(x, y, z))
+  local lod = math.max(distance / 2 - 1.25, 0) -- usually it's -1, -1.25 is conservative
+  return 1 / (2 ^ lod)
+end
+
 function cave:init()
   self.active = false
   self.frustum = lovr.math.newMat4()
@@ -99,11 +109,9 @@ end
 function cave:draw()
   if not self.active then return end
 
-  lovr.graphics.setBlendMode()
-  lovr.graphics.setCullingEnabled(true)
-  lovr.graphics.setShader(self.shader)
-
   local draws = {}
+
+  local head = vec3(lovr.headset.getPosition()):sub(vec3(world.x, world.y, world.z))
 
   local function visit(node)
     if not node then return end
@@ -114,7 +122,8 @@ function cave:draw()
     if not self:canSee(node.aabb) then return end
 
     if node.leaf then
-      draws[#draws + 1] = { node.start, node.count }
+      local detail = getDetail(node.aabb, head)
+      table.insert(draws, { node.start, node.count * detail })
     else
       for child = node.key * 8, node.key * 8 + 7 do
         visit(octree.lookup[child])
@@ -124,12 +133,12 @@ function cave:draw()
 
   visit(octree[1])
 
-  for i = 1, #draws do
-    self.mesh:setDrawRange(unpack(draws[i]))
-    self.mesh:draw()
-  end
-
-  --self.mesh:multidraw(draws)
+  lovr.graphics.setBlendMode()
+  lovr.graphics.setCullingEnabled(true)
+  lovr.graphics.setShader(self.shader)
+  lovr.graphics.setColor(1, 1, 1)
+  self.mesh:setMultidraws(draws)
+  self.mesh:draw()
   lovr.graphics.setShader()
 end
 

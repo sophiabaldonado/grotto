@@ -14,11 +14,11 @@
 
 static float* points;
 static float* weights;
+static float* noiseness;
 static uint32_t* priorities;
 static uint32_t* heap;
 
 static uint32_t* order; // final point index order
-static float* noiseness; // global order index
 
 // STL
 #pragma pack(push,1)
@@ -194,6 +194,14 @@ struct onode {
   uint32_t count;
 };
 
+int cmpWeight(const void* a, const void* b) {
+  uint32_t i = *(uint32_t*) a;
+  uint32_t j = *(uint32_t*) b;
+  if (noiseness[i] < noiseness[j]) return -1;
+  else if (noiseness[i] > noiseness[j]) return 1;
+  return 0;
+}
+
 static void octreeify(uint32_t parent, float center[3], float size[3], uint32_t start, uint32_t count, FILE* handle) {
   struct onode nodes[8];
   memset(nodes, 0, sizeof(nodes));
@@ -237,10 +245,7 @@ static void octreeify(uint32_t parent, float center[3], float size[3], uint32_t 
         if (key == o) {
           break;
         } else {
-          j++; // Why not swap it into the right node immediately instead of skipping it?
-               // Would want to have per-node cursors so you know where to put it
-               // You're just going to end up swapping this node later on anyway
-               // I guess the ordering is no longer stable this way, but I don't think that matters
+          j++;
         }
       }
 
@@ -249,15 +254,18 @@ static void octreeify(uint32_t parent, float center[3], float size[3], uint32_t 
       order[i] = order[j];
       order[j] = temp;
 
-      float t = noiseness[i];
-      noiseness[i] = noiseness[j];
-      noiseness[j] = t;
       i++;
     }
   }
 
+  for (uint32_t o = 0; o < 8; o++) {
+    struct onode* node = &nodes[o];
+    qsort(order + node->start, node->count, sizeof(order[0]), cmpWeight);
+  }
+
   // Recurse
   for (uint32_t i = 0; i < 8; i++) {
+    struct onode* node = &nodes[i];
     uint32_t key = (parent << 3) | i;
 
     float subSize[3] = { size[0] / 2.f, size[1] / 2.f, size[2] / 2.f };
@@ -265,25 +273,41 @@ static void octreeify(uint32_t parent, float center[3], float size[3], uint32_t 
     subCenter[0] = center[0] - subSize[0] + ((i & 0x4) ? size[0] : 0);
     subCenter[1] = center[1] - subSize[1] + ((i & 0x2) ? size[1] : 0);
     subCenter[2] = center[2] - subSize[2] + ((i & 0x1) ? size[2] : 0);
-    float minx = subCenter[0] - subSize[0];
-    float maxx = subCenter[0] + subSize[0];
-    float miny = subCenter[1] - subSize[1];
-    float maxy = subCenter[1] + subSize[1];
-    float minz = subCenter[2] - subSize[2];
-    float maxz = subCenter[2] + subSize[2];
 
-    int recurse = nodes[i].count > 16384 || (size[0] > 3. || size[1] > 3. || size[2] > 3.);
-    uint32_t start = nodes[i].start + 1; // Lua
-    uint32_t count = nodes[i].count;
+    // Compute tight bounding box
+    float minx = subCenter[0] + subSize[0];
+    float maxx = subCenter[0] - subSize[0];
+    float miny = subCenter[1] + subSize[1];
+    float maxy = subCenter[1] - subSize[1];
+    float minz = subCenter[2] + subSize[2];
+    float maxz = subCenter[2] - subSize[2];
+    for (uint32_t j = node->start; j < node->start + node->count; j++) {
+      minx = MIN(minx, points[3 * order[j] + 0]);
+      maxx = MAX(maxx, points[3 * order[j] + 0]);
+      miny = MIN(miny, points[3 * order[j] + 1]);
+      maxy = MAX(maxy, points[3 * order[j] + 1]);
+      minz = MIN(minz, points[3 * order[j] + 2]);
+      maxz = MAX(maxz, points[3 * order[j] + 2]);
+    }
+    subCenter[0] = (minx + maxx) / 2.f;
+    subCenter[1] = (miny + maxy) / 2.f;
+    subCenter[2] = (minz + maxz) / 2.f;
+    subSize[0] = (maxx - minx) / 2.f;
+    subSize[1] = (maxy - miny) / 2.f;
+    subSize[2] = (maxz - minz) / 2.f;
 
-    if (nodes[i].count > 0 && !recurse) {
+    int recurse = node->count > 16384 || (size[0] > 3. || size[1] > 3. || size[2] > 3.);
+    uint32_t start = node->start + 1; // Lua
+    uint32_t count = node->count;
+
+    if (node->count > 0 && !recurse) {
       fprintf(handle, "  { key = %d, start = %d, count = %d, aabb = { %f, %f, %f, %f, %f, %f }, leaf = true },\n", key, start, count, minx, maxx, miny, maxy, minz, maxz);
     } else {
       fprintf(handle, "  { key = %d, aabb = { %f, %f, %f, %f, %f, %f } },\n", key, minx, maxx, miny, maxy, minz, maxz);
     }
 
     if (recurse) {
-      octreeify(key, subCenter, subSize, nodes[i].start, nodes[i].count, handle);
+      octreeify(key, subCenter, subSize, node->start, node->count, handle);
     }
   }
 }
@@ -428,6 +452,7 @@ int main(int argc, char** argv) {
   // Do a range query and reduce the weight of its neighbors
   uint32_t i = 0;
   order = malloc(count * sizeof(uint32_t));
+  noiseness = malloc(n * sizeof(float));
   while (n > 0) {
     uint32_t index = heap[0];
     priorities[index] = ~0u;
@@ -442,6 +467,7 @@ int main(int argc, char** argv) {
 
     if (n <= count) {
       order[n - 1] = index;
+      noiseness[index] = (float) (n - 1) / count;
     }
 
     n--;
@@ -454,11 +480,6 @@ int main(int argc, char** argv) {
     i++;
   }
   printf("\n");
-
-  noiseness = malloc(count * sizeof(float));
-  for (uint32_t i = 0; i < count; i++) {
-    noiseness[i] = (float) i / count;
-  }
 
   FILE* meta = fopen("points.lua", "w+");
   if (!meta) {
@@ -487,7 +508,7 @@ int main(int argc, char** argv) {
 
   for (uint32_t i = 0; i < count; i++) {
     fwrite(points + 3 * order[i], 1, 12, bin);
-    fwrite(noiseness + i, 1, 4, bin);
+    fwrite(noiseness + order[i], 1, 4, bin);
   }
 
   fclose(bin);
@@ -495,10 +516,10 @@ int main(int argc, char** argv) {
   free(data);
   free(points);
   free(weights);
+  free(noiseness);
   free(priorities);
   free(heap);
   free(order);
-  free(noiseness);
   printf("Density: %fs/m\n", count / totalArea);
   return 0;
 }

@@ -6,6 +6,8 @@ io.stdout:setvbuf('no')
 
 function lovr.load()
   lovr.headset.setClipDistance(0.1, 100)
+  lovr.graphics.setCullingEnabled(true)
+  lovr.graphics.setBlendMode()
   menu:init()
   cave:init()
   forest:init()

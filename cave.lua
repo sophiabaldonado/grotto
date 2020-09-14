@@ -85,6 +85,7 @@ function cave:init()
 
   self.feeler = lovr.graphics.newComputeShader('assets/feeler.glsl')
   self.shader = lovr.graphics.newShader('assets/point.glsl', 'assets/point.glsl')
+  self.occlusion = lovr.graphics.newShader('assets/occlusion.glsl', 'assets/occlusion.glsl')
 
   self.ambience = lovr.audio.newSource('assets/cave.ogg', 'static')
   self.ambience:setLooping(true)
@@ -121,10 +122,13 @@ function cave:draw()
   local head = vec3(lovr.headset.getPosition()):sub(vec3(world.x, world.y, world.z))
   local hx, hy, hz = head:unpack()
 
-  lovr.graphics.setBlendMode()
-  lovr.graphics.setCullingEnabled(true)
+  lovr.graphics.setColorMask()
+  lovr.graphics.setShader(self.occlusion)
+  for room in pairs(self.rooms.active) do
+    room.mesh:draw()
+  end
+  lovr.graphics.setColorMask(true, true, true, true)
   lovr.graphics.setShader(self.shader)
-  lovr.graphics.setColor(1, 1, 1)
 
   for room in pairs(self.rooms.active) do
     local function visit(node)
@@ -190,6 +194,7 @@ function cave:load(index)
   room.sizes = lovr.graphics.newShaderBlock('compute', sizeFormat, { usage = 'static', zero = true })
   room.points = lovr.graphics.newShaderBlock('compute', pointFormat, { usage = 'static' })
   room.points:send('points', blob)
+  room.mesh = lovr.graphics.newModel(root .. '.obj')
 
   self.rooms[index] = room
 end

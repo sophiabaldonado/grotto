@@ -1,7 +1,6 @@
 import bpy
 import os
 
-global positions
 positions = 'return { '
 
 positions += 'mushrooms = { '

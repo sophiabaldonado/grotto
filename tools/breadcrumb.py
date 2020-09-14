@@ -1,3 +1,4 @@
+from mathutils import Vector
 import bpy
 import os
 
@@ -6,13 +7,17 @@ positions = 'return { '
 positions += 'mushrooms = { '
 for ob in bpy.context.selected_objects:
     if 'shroom' in ob.name:
-        positions += '%f,%f,%f' % ob.location[:] + ','
+        local_bbox_center = 0.125 * sum((Vector(b) for b in ob.bound_box), Vector())
+        global_bbox_center = ob.matrix_world @ local_bbox_center
+        positions += '{ ' + '%f,%f,%f' % global_bbox_center[:] + ' },'
 positions += ' },'
 
 positions += ' crystals = { '
 for ob in bpy.context.selected_objects:
     if 'crystal' in ob.name:
-        positions += '%f,%f,%f' % ob.location[:] + ','
+        local_bbox_center = 0.125 * sum((Vector(b) for b in ob.bound_box), Vector())
+        global_bbox_center = ob.matrix_world @ local_bbox_center
+        positions += '{ ' + '%f,%f,%f' % global_bbox_center[:] + ' },'
 positions += ' }'
 
 positions += ' }'

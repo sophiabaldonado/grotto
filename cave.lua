@@ -125,7 +125,9 @@ function cave:draw()
   lovr.graphics.setColorMask()
   lovr.graphics.setShader(self.occlusion)
   for room in pairs(self.rooms.active) do
-    room.mesh:draw()
+    if canSee(self.frustum, room.octree[1].aabb) then
+      room.mesh:draw()
+    end
   end
   lovr.graphics.setColorMask(true, true, true, true)
   lovr.graphics.setShader(self.shader)

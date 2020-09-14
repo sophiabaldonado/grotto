@@ -1,0 +1,1 @@
+return { mushrooms = {  }, crystals = {  } }

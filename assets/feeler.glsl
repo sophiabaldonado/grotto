@@ -9,7 +9,7 @@ layout(std430, binding = 1) buffer Sizes {
 };
 
 uniform int offset;
-uniform vec3 hands[2];
+uniform vec3 lights[4];
 uniform float dt;
 
 void compute() {
@@ -17,9 +17,10 @@ void compute() {
   uint index = uint(offset) + id;
 
   vec3 point = points[index].xyz;
-  float leftDistance = distance(hands[0], point);
-  float rightDistance = distance(hands[1], point);
-  float d = min(leftDistance, rightDistance);
+  float d0 = distance(lights[0], point);
+  float d1 = distance(lights[1], point);
+  float d2 = distance(lights[2], point);
+  float d = min(min(d0, d1), d2);
 
   if (d < .3) {
     float factor = pow(clamp(1.f - d / .3, 0., 1.), 2.f);

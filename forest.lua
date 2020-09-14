@@ -47,7 +47,7 @@ function forest:update(dt)
   end
 
   if self.moon then
-    if not self.concluded then      
+    if not self.concluded then
       self.concluded = true
     end
     self.treefade = math.min(self.treefade + dt * .5, 1)
@@ -69,11 +69,9 @@ function forest:draw()
   lovr.graphics.circle('fill', 5, 25, -18, 1, math.pi / 3, 1, 0, 0)
   lovr.graphics.setColor(1.0, 1.0, 1.0, 1.0)
 
-  lovr.graphics.setCullingEnabled(true)
   lovr.graphics.setWinding('clockwise')
   lovr.graphics.sphere(self.treematerial, 0, 15, 0, 15)
   lovr.graphics.setWinding('counterclockwise')
-  lovr.graphics.setCullingEnabled(false)
 end
 
 function forest:start()

@@ -314,11 +314,11 @@ static void octreeify(uint32_t parent, float center[3], float size[3], uint32_t 
 
 int main(int argc, char** argv) {
   if (argc < 3) {
-    printf("Usage: %s [model.stl] [n]\n", argv[0]);
+    printf("Usage: %s [model.stl] [points/meter]\n", argv[0]);
     return 1;
   }
 
-  uint32_t count = atoi(argv[2]);
+  float density = strtof(argv[2], NULL);
   seed = time(NULL);
   setvbuf(stdout, NULL, _IONBF, 0);
 
@@ -371,8 +371,14 @@ int main(int argc, char** argv) {
   float bounds[3] = { max[0] - min[0], max[1] - min[1], max[2] - min[2] };
   float center[3] = { (min[0] + max[0]) / 2.f, (min[1] + max[1]) / 2.f, (min[2] + max[2]) / 2.f };
   float volume = bounds[0] * bounds[1] * bounds[2];
-
+  uint32_t count = totalArea * density + .5;
   uint32_t n = count * MULTIPLIER;
+
+  printf("Count: %d\n", count);
+  printf("Volume: %fm3\n", volume);
+  printf("Surface Area: %fm2\n", totalArea);
+  printf("Density: %fs/m\n", count / totalArea);
+
   points = malloc(n * 3 * sizeof(float));
   for (int i = 0; i < n; i++) {
 
@@ -520,6 +526,5 @@ int main(int argc, char** argv) {
   free(priorities);
   free(heap);
   free(order);
-  printf("Density: %fs/m\n", count / totalArea);
   return 0;
 }

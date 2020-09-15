@@ -101,7 +101,10 @@ function cave:init()
     prev = lovr.math.newVec3(),
     source = lovr.math.newVec3(),
     target = lovr.math.newVec3(),
-    cursor = lovr.math.newVec3()
+    cursor = lovr.math.newVec3(),
+    fadeOut = 0,
+    fadeIn = 0,
+    alpha = 0
   }
 
   self.ambience = lovr.audio.newSource('assets/cave.ogg', 'static')
@@ -176,8 +179,6 @@ function cave:update(dt)
     local position = vec3(lovr.headset.getPosition(self.blinker.hand)):sub(world)
     local delta = position - self.blinker.prev
 
-    --local delta = self.blinker.source - vec3(lovr.headset.getPosition(self.blinker.hand)):sub(world)
-
     local d = math.huge
     local target = vec3()
     local origin = self.blinker.source + delta * 2
@@ -210,14 +211,27 @@ function cave:update(dt)
 
     self.blinker.prev:set(position)
   else
-    if self.blinker.active then
+    if self.blinker.active and self.blinker.fadeOut == 0 then
+      self.blinker.alpha = 1
+      self.blinker.fadeOut = .1
+    end
+  end
+
+  if self.blinker.fadeOut > 0 then
+    self.blinker.fadeOut = math.max(self.blinker.fadeOut - dt, 0)
+    self.blinker.alpha = 1 - self.blinker.fadeOut / .1
+    if self.blinker.fadeOut == 0 then
       local delta = vec3(lovr.headset.getPosition())
       local dx, _, dz = delta:unpack()
       local tx, ty, tz = self.blinker.target:unpack()
       local w = _G.world
       w.x, w.y, w.z = -tx + dx, -ty, -tz + dz
+      self.blinker.active = false
+      self.blinker.fadeIn = .1
     end
-    self.blinker.active = false
+  elseif self.blinker.fadeIn > 0 then
+    self.blinker.fadeIn = math.max(self.blinker.fadeIn - dt, 0)
+    self.blinker.alpha = self.blinker.fadeIn / .1
   end
 end
 
@@ -278,6 +292,13 @@ function cave:draw()
   end
 
   lovr.graphics.setShader()
+
+  if self.blinker.alpha > 0 then
+    lovr.graphics.setColor(0, 0, 0, self.blinker.alpha)
+    lovr.graphics.setBlendMode('alpha')
+    lovr.graphics.fill()
+    lovr.graphics.setBlendMode()
+  end
 end
 
 function cave:start()

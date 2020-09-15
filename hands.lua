@@ -30,7 +30,11 @@ function hands:draw()
         lovr.graphics.setShader(self.shader)
         self.models[hand]:draw(mat4(lovr.headset.getPose(hand)))
       else
-        lovr.graphics.sphere(mat4(lovr.headset.getPose(hand)):scale(.01))
+        lovr.graphics.setBlendMode('alpha')
+        lovr.graphics.setColor(1, 1, 1, .5)
+        lovr.graphics.sphere(mat4(lovr.headset.getPose(hand)):scale(.015))
+        lovr.graphics.setColor(1, 1, 1, 1)
+        lovr.graphics.setBlendMode()
       end
     end
   end

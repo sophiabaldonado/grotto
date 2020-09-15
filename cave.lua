@@ -124,10 +124,14 @@ function cave:init()
   local crystals = require('tools/breadcrumb-data').crystals
   local mushrooms = require('tools/breadcrumb-data').mushrooms
   for i = 1, #crystals do
-    table.insert(self.lights, { health = .5, position = crystals[i], crystal = true })
+    local light = { health = .5, position = crystals[i], crystal = true }
+    light.position[2], light.position[3] = light.position[3], -light.position[2]
+    table.insert(self.lights, light)
   end
   for i = 1, #mushrooms do
-    table.insert(self.lights, { health = .5, position = mushrooms[i], mushroom = true })
+    local light = { health = .5, position = mushrooms[i], mushroom = true }
+    light.position[2], light.position[3] = light.position[3], -light.position[2]
+    table.insert(self.lights, light)
   end
 end
 

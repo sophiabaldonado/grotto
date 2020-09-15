@@ -192,12 +192,13 @@ function cave:load(index)
     octree[i].revealed = false
   end
 
-  room.octree = octree
   room.count = count
+  room.octree = octree
+  room.mesh = lovr.graphics.newModel(root .. '.obj')
   room.sizes = lovr.graphics.newShaderBlock('compute', sizeFormat, { usage = 'static', zero = true })
   room.points = lovr.graphics.newShaderBlock('compute', pointFormat, { usage = 'static' })
   room.points:send('points', blob)
-  room.mesh = lovr.graphics.newModel(root .. '.obj')
+  blob:release()
 
   self.rooms[index] = room
 end

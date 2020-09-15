@@ -438,6 +438,7 @@ function cave:feel(dt, head, left, right)
 
   if self.lights[1] then
     lights[4] = self.lights[1].position
+    cx, cy, cz = unpack(lights[4])
     self.lights[1].health = self.lights[1].health - dt
     if self.lights[1].health <= 0 then
       self.lights[1] = nil
@@ -446,6 +447,7 @@ function cave:feel(dt, head, left, right)
     for i, light in pairs(self.lights) do
       if head:distance(vec3(unpack(light.position))) < .5 then
         lights[4] = light.position
+        cx, cy, cz = unpack(lights[4])
         light.health = light.health - dt
         if light.health <= 0 then
           self.lights[i] = nil

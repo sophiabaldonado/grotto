@@ -209,7 +209,7 @@ function cave:update(dt)
 
   if self.blinker.active and lovr.headset.isDown(self.blinker.hand, 'trigger') then
     local position = vec3(lovr.headset.getPosition(self.blinker.hand)):sub(world)
-    local delta = position - self.blinker.prev
+    local delta = self.blinker.prev - position
 
     local d = math.huge
     local target = vec3()

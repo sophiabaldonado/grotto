@@ -347,8 +347,8 @@ int main(int argc, char** argv) {
   // Sum the area of all the triangles to get the total area
   // Also store the area for each triangle
 
-  float min[3] = { FLT_MAX };
-  float max[3] = { FLT_MIN };
+  float min[3] = { FLT_MAX, FLT_MAX, FLT_MAX };
+  float max[3] = { FLT_MIN, FLT_MIN, FLT_MIN };
   float totalArea = 0.f;
   float* areas = malloc(data->count * sizeof(float));
   for (uint32_t i = 0; i < data->count; i++) {
@@ -370,6 +370,7 @@ int main(int argc, char** argv) {
   }
   float bounds[3] = { max[0] - min[0], max[1] - min[1], max[2] - min[2] };
   float center[3] = { (min[0] + max[0]) / 2.f, (min[1] + max[1]) / 2.f, (min[2] + max[2]) / 2.f };
+  printf("%f %f %f\n", center[0], center[1], center[2]);
   float volume = bounds[0] * bounds[1] * bounds[2];
   uint32_t count = totalArea * density + .5;
   uint32_t n = count * MULTIPLIER;

@@ -23,13 +23,14 @@ function hands:update(dt)
 end
 
 function hands:draw()
-  lovr.graphics.setShader(self.shader)
+  lovr.graphics.setShader()
   for i, hand in ipairs({ 'left', 'right' }) do
     if lovr.headset.isTracked(hand) then
-      if self.models[hand] and lovr.headset.animate(hand, self.models[hand]) then
+      if lovr.headset.getDriver() == 'vrapi' and self.models[hand] and lovr.headset.animate(hand, self.models[hand]) then
+        lovr.graphics.setShader(self.shader)
         self.models[hand]:draw(mat4(lovr.headset.getPose(hand)))
       else
-        lovr.graphics.sphere(mat4(lovr.headset.getPose(hand)):scale(.025))
+        lovr.graphics.sphere(mat4(lovr.headset.getPose(hand)):scale(.01))
       end
     end
   end

@@ -14,7 +14,7 @@ function forest:init()
   self.treetexture = lovr.graphics.newTexture('assets/forest.png')
   self.treematerial = lovr.graphics.newMaterial(self.treetexture, 0, 0, 0, 1)
 
-  self.ambience = lovr.audio.newSource('assets/forest.ogg', 'static')
+  self.ambience = lovr.audio.newSource('assets/forest.ogg', 'stream')
   self.ambience:setLooping(true)
   self.ambiencevolume = 0
   self.ambience:setVolume(self.ambiencevolume)

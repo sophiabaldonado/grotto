@@ -133,6 +133,12 @@ function cave:init()
     light.position[2], light.position[3] = light.position[3], -light.position[2]
     table.insert(self.lights, light)
   end
+
+  self.exitZone = {
+    position = lovr.math.newVec3(-32.80, 20.38, 1.57),
+    radius = 2.3,
+    timer = 1
+  }
 end
 
 function cave:update(dt)
@@ -283,6 +289,14 @@ function cave:update(dt)
   elseif self.blinker.fadeIn > 0 then
     self.blinker.fadeIn = math.max(self.blinker.fadeIn - dt, 0)
     self.blinker.alpha = self.blinker.fadeIn / .1
+  end
+
+  self.exitZone.timer = self.exitZone.timer - dt
+  if self.exitZone.timer <= 0 then
+    if head:distance(self.exitZone.position) <= self.exitZone.radius then
+      self:exit()
+    end
+    self.exitZone.timer = lovr.math.random(1, 2)
   end
 end
 

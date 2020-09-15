@@ -318,6 +318,7 @@ int main(int argc, char** argv) {
     return 1;
   }
 
+  size_t length = strlen(argv[1]);
   float density = strtof(argv[2], NULL);
   seed = time(NULL);
   setvbuf(stdout, NULL, _IONBF, 0);
@@ -487,12 +488,16 @@ int main(int argc, char** argv) {
   }
   printf("\n");
 
-  FILE* meta = fopen("points.lua", "w+");
+  char name[1024];
+  strcpy(name, argv[1]);
+  name[length - 3] = 'l';
+  name[length - 2] = 'u';
+  name[length - 1] = 'a';
+  FILE* meta = fopen(name, "w+");
   if (!meta) {
-    printf("Can't open %s\n", "points.lua");
+    printf("Can't open %s\n", name);
     return 1;
   }
-
 
   float halfBounds[3] = { bounds[0] / 2.f, bounds[1] / 2.f, bounds[2] / 2.f };
   float minx = center[0] - halfBounds[0];
@@ -506,9 +511,13 @@ int main(int argc, char** argv) {
   fputs("}\n", meta);
   fclose(meta);
 
-  FILE* bin = fopen("points.bin", "wb+");
+  strcpy(name, argv[1]);
+  name[length - 3] = 'b';
+  name[length - 2] = 'i';
+  name[length - 1] = 'n';
+  FILE* bin = fopen(name, "wb+");
   if (!bin) {
-    printf("Can't open %s\n", "points.bin");
+    printf("Can't open %s\n", name);
     return 1;
   }
 

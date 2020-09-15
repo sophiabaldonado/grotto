@@ -109,9 +109,10 @@ function cave:init()
   }
 
   self.intro = lovr.audio.newSource('assets/intro.ogg', 'static')
-  self.ambience = lovr.audio.newSource('assets/cave.ogg', 'static')
+  self.ambience = lovr.audio.newSource('assets/cave.ogg', 'stream')
   self.ambience:setLooping(true)
-  self.driploop = lovr.audio.newSource('assets/driploop.ogg', 'static')
+
+  self.driploop = lovr.audio.newSource('assets/driploop.ogg', 'stream')
   self.driploop:setLooping(true)
   self.drips = {
     lovr.audio.newSource('assets/drip1.ogg', 'static'),
@@ -121,6 +122,15 @@ function cave:init()
     lovr.audio.newSource('assets/drip5.ogg', 'static'),
     lovr.audio.newSource('assets/drip6.ogg', 'static')
   }
+
+  self.lights = {}
+  local lights = require('tools/breadcrumb-data').lights
+  for i = 1, #lights do
+    self.lights[i] = {
+      health = .5,
+      position = lights[i]
+    }
+  end
 end
 
 function cave:update(dt)
@@ -422,6 +432,17 @@ function cave:feel(dt, head, left, right)
 
   if self.blinker.active then
     lights[4] = { cx, cy, cz }
+  end
+
+  for i, light in pairs(self.lights) do
+    if left:distance(light.position) < .5 or right:distance(light.position) < .5 then
+      lights[4] = light.position
+      light.health = light.health - dt
+      if light.health <= 0 then
+        self.lights[i] = nil
+        break
+      end
+    end
   end
 
   self.feeler:send('lights', lights)

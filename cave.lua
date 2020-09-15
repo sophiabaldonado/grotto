@@ -302,14 +302,14 @@ function cave:draw()
 
   lovr.graphics.setColorMask()
   lovr.graphics.setShader(self.occlusion)
-  lovr.graphics.setDepthNudge(5, 5)
+  if lovr.graphics.setDepthNudge then lovr.graphics.setDepthNudge(5, 5) end
   for room in pairs(self.rooms.active) do
     if canSee(self.frustum, room.octree[1].aabb) then
       room.mesh:draw()
     end
   end
   lovr.graphics.flush()
-  lovr.graphics.setDepthNudge(0, 0)
+  if lovr.graphics.setDepthNudge then lovr.graphics.setDepthNudge(0, 0) end
   lovr.graphics.setColorMask(true, true, true, true)
   lovr.graphics.setShader(self.shader)
 

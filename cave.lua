@@ -270,8 +270,10 @@ function cave:updateFrustum()
   if not lleft or not rleft then return end
 
   -- Fix vrapi bug
-  lleft, lright, ltop, lbottom = -math.rad(lleft), math.rad(lright), math.rad(ltop), -math.rad(lbottom)
-  rleft, rright, rtop, rbottom = -math.rad(rleft), math.rad(rright), math.rad(rtop), -math.rad(rbottom)
+  if lovr.headset.getDriver() == 'vrapi' then
+    lleft, lright, ltop, lbottom = -math.rad(lleft), math.rad(lright), math.rad(ltop), -math.rad(lbottom)
+    rleft, rright, rtop, rbottom = -math.rad(rleft), math.rad(rright), math.rad(rtop), -math.rad(rbottom)
+  end
 
   -- More conservative
   lleft = lleft - .05

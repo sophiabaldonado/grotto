@@ -40,7 +40,9 @@ function lovr.draw()
   hands:draw()
 
   lovr.graphics.push()
-  lovr.graphics.translate(world.x, world.y, world.z)
+  if currentScene == 'cave' then
+    lovr.graphics.translate(world.x, world.y, world.z)
+  end
   drawCurrentScene()
   lovr.graphics.pop()
 end

@@ -70,7 +70,9 @@ function forest:draw()
   lovr.graphics.setColor(1.0, 1.0, 1.0, 1.0)
 
   lovr.graphics.setWinding('clockwise')
+  lovr.graphics.setBlendMode('alpha')
   lovr.graphics.sphere(self.treematerial, 0, 15, 0, 15)
+  lovr.graphics.setBlendMode()
   lovr.graphics.setWinding('counterclockwise')
 end
 

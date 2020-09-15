@@ -20,7 +20,8 @@ void compute() {
   float d0 = distance(lights[0], point);
   float d1 = distance(lights[1], point);
   float d2 = distance(lights[2], point);
-  float d = min(min(d0, d1), d2);
+  float d3 = distance(lights[3], point);
+  float d = min(min(d0, d1), min(d2, d3));
 
   if (d < .3) {
     float factor = pow(clamp(1.f - d / .3, 0., 1.), 2.f);

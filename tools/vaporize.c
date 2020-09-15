@@ -12,6 +12,8 @@
 
 #define MULTIPLIER 4
 
+static uint32_t* navfaces;
+
 static float* points;
 static float* weights;
 static float* noiseness;
@@ -301,9 +303,9 @@ static void octreeify(uint32_t parent, float center[3], float size[3], uint32_t 
     uint32_t count = node->count;
 
     if (node->count > 0 && !recurse) {
-      fprintf(handle, "  { key = %d, start = %d, count = %d, aabb = { %f, %f, %f, %f, %f, %f }, leaf = true },\n", key, start, count, minx, maxx, miny, maxy, minz, maxz);
+      fprintf(handle, "    { key = %d, start = %d, count = %d, aabb = { %f, %f, %f, %f, %f, %f }, leaf = true },\n", key, start, count, minx, maxx, miny, maxy, minz, maxz);
     } else {
-      fprintf(handle, "  { key = %d, aabb = { %f, %f, %f, %f, %f, %f } },\n", key, minx, maxx, miny, maxy, minz, maxz);
+      fprintf(handle, "    { key = %d, aabb = { %f, %f, %f, %f, %f, %f } },\n", key, minx, maxx, miny, maxy, minz, maxz);
     }
 
     if (recurse) {
@@ -352,6 +354,8 @@ int main(int argc, char** argv) {
   float max[3] = { FLT_MIN, FLT_MIN, FLT_MIN };
   float totalArea = 0.f;
   float* areas = malloc(data->count * sizeof(float));
+  navfaces = malloc(data->count * sizeof(uint32_t));
+  uint32_t navfaceCount = 0;
   for (uint32_t i = 0; i < data->count; i++) {
     float* v[3] = { data->faces[i].vertices[0], data->faces[i].vertices[1], data->faces[i].vertices[2] };
     float p[3] = { v[1][0] - v[0][0], v[1][1] - v[0][1], v[1][2] - v[0][2] };
@@ -368,6 +372,10 @@ int main(int argc, char** argv) {
       max[j] = MAX(max[j], v[1][j]);
       max[j] = MAX(max[j], v[2][j]);
     }
+
+    if (data->faces[i].normal[1] > .7) {
+      navfaces[navfaceCount++] = i;
+    }
   }
   float bounds[3] = { max[0] - min[0], max[1] - min[1], max[2] - min[2] };
   float center[3] = { (min[0] + max[0]) / 2.f, (min[1] + max[1]) / 2.f, (min[2] + max[2]) / 2.f };
@@ -376,6 +384,7 @@ int main(int argc, char** argv) {
   uint32_t n = count * MULTIPLIER;
 
   printf("Count: %d\n", count);
+  printf("Navfaces: %d\n", navfaceCount);
   printf("Volume: %fm3\n", volume);
   printf("Surface Area: %fm2\n", totalArea);
   printf("Density: %fs/m\n", count / totalArea);
@@ -506,9 +515,15 @@ int main(int argc, char** argv) {
   float maxy = center[1] + halfBounds[1];
   float minz = center[2] - halfBounds[2];
   float maxz = center[2] + halfBounds[2];
-  fprintf(meta, "return {\n  { key = 1, aabb = { %f, %f, %f, %f, %f, %f } },\n", minx, maxx, miny, maxy, minz, maxz);
+  fprintf(meta, "return {\n  octree = {\n    { key = 1, aabb = { %f, %f, %f, %f, %f, %f } },\n", minx, maxx, miny, maxy, minz, maxz);
   octreeify(0x1, center, halfBounds, 0, count, meta);
-  fputs("}\n", meta);
+  fputs("  },\n", meta);
+  fputs("  navmesh = {\n", meta);
+  for (uint32_t i = 0; i < navfaceCount; i++) {
+    float* v = &data->faces[navfaces[i]].vertices[0][0];
+    fprintf(meta, "    { %f, %f, %f, %f, %f, %f, %f, %f, %f },\n", v[0], v[1], v[2], v[3], v[4], v[5], v[6], v[7], v[8]);
+  }
+  fputs("  }\n}\n", meta);
   fclose(meta);
 
   strcpy(name, argv[1]);

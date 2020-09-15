@@ -424,6 +424,8 @@ function cave:checkRooms(dt, head)
 end
 
 function cave:feel(dt, head, left, right)
+  if self.intro:isPlaying() then return end
+
   local hx, hy, hz = head:unpack()
   local lx, ly, lz = left:unpack()
   local rx, ry, rz = right:unpack()
@@ -436,12 +438,20 @@ function cave:feel(dt, head, left, right)
     lights[4] = { cx, cy, cz }
   end
 
-  if self.lights[1] then
-    lights[4] = self.lights[1].position
+  local autolight = self.lights[1] or self.lights[2] or self.lights[3]
+
+  if autolight then
+    lights[4] = autolight.position
     cx, cy, cz = unpack(lights[4])
-    self.lights[1].health = self.lights[1].health - dt
-    if self.lights[1].health <= 0 then
-      self.lights[1] = nil
+    autolight.health = autolight.health - dt
+    if autolight.health <= 0 then
+      if autolight == self.lights[1] then
+        self.lights[1] = nil
+      elseif autolight == self.lights[2] then
+        self.lights[2] = nil
+      elseif autolight == self.lights[3] then
+        self.lights[3] = nil
+      end
     end
   else
     for i, light in pairs(self.lights) do

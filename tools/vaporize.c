@@ -495,12 +495,12 @@ int main(int argc, char** argv) {
 
 
   float halfBounds[3] = { bounds[0] / 2.f, bounds[1] / 2.f, bounds[2] / 2.f };
-  float minx = center[0] - bounds[0];
-  float maxx = center[0] + bounds[0];
-  float miny = center[1] - bounds[1];
-  float maxy = center[1] + bounds[1];
-  float minz = center[2] - bounds[2];
-  float maxz = center[2] + bounds[2];
+  float minx = center[0] - halfBounds[0];
+  float maxx = center[0] + halfBounds[0];
+  float miny = center[1] - halfBounds[1];
+  float maxy = center[1] + halfBounds[1];
+  float minz = center[2] - halfBounds[2];
+  float maxz = center[2] + halfBounds[2];
   fprintf(meta, "return {\n  { key = 1, aabb = { %f, %f, %f, %f, %f, %f } },\n", minx, maxx, miny, maxy, minz, maxz);
   octreeify(0x1, center, halfBounds, 0, count, meta);
   fputs("}\n", meta);

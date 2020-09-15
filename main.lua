@@ -13,8 +13,8 @@ function lovr.load()
   currentScene = 'menu'
   hands:init()
   swimspeed = 1.5
-  --world = { x= 7.72301, z = -31.22, y = 1.00709 }
-  world = { x = 5.66936, z = -23.4027, y = 0.752744 }
+  -- world = { x = 5.66936, z = -23.4027, y = 0.752744 }
+  world = { x = -3.35237, z = -3.53948, y = -0.64883 }
 end
 
 function lovr.update(dt)

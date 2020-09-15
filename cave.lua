@@ -1,6 +1,6 @@
 local cave = {}
 
-local rooms = { 'depths', 'twisting-tunnel', 'stalactite-cavern', 'trunnel-of-trials', 'the-bridge', 'winding-road' }
+local rooms = { 'depths', 'twisting-tunnel', 'stalactite-cavern', 'tunnel-of-trials', 'the-bridge', 'winding-road' }
 
 local function lerp(x, y, t)
   return x + (y - x) * t
@@ -111,8 +111,6 @@ function cave:init()
   self.intro = lovr.audio.newSource('assets/intro.ogg', 'static')
   self.ambience = lovr.audio.newSource('assets/cave.ogg', 'static')
   self.ambience:setLooping(true)
-  self.driploop = lovr.audio.newSource('assets/driploop.ogg', 'static')
-  self.driploop:setLooping(true)
   self.drips = {
     lovr.audio.newSource('assets/drip1.ogg', 'static'),
     lovr.audio.newSource('assets/drip2.ogg', 'static'),
@@ -292,14 +290,14 @@ function cave:draw()
 
   lovr.graphics.setColorMask()
   lovr.graphics.setShader(self.occlusion)
-  lovr.graphics.setDepthNudge(5, 5)
+  -- lovr.graphics.setDepthNudge(5, 5)
   for room in pairs(self.rooms.active) do
     if canSee(self.frustum, room.octree[1].aabb) then
       room.mesh:draw()
     end
   end
   lovr.graphics.flush()
-  lovr.graphics.setDepthNudge(0, 0)
+  -- lovr.graphics.setDepthNudge(0, 0)
   lovr.graphics.setColorMask(true, true, true, true)
   lovr.graphics.setShader(self.shader)
 
@@ -499,18 +497,17 @@ end
 
 function cave:playCavernSounds(incavern, dt)
   if incavern then
-    self.driploop:play()
     for i,e in ipairs(self.emitters) do
       local playchance = lovr.math.random()
-      if playchance < (dt / 80) then
+      if playchance < (dt / .1) then
         local sound = self.drips[lovr.math.random(1, 6)]
         local pos = { e[1] + world.x, e[2] + world.y, e[3] + world.z }
-        sound:setPosition(unpack(pos))
-        sound:play()
+        if not sound:isPlaying() then
+          sound:setPosition(unpack(pos))
+          sound:play()
+        end
       end
     end
-  else
-    self.driploop:stop()
   end
 end
 

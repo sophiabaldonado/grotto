@@ -1,6 +1,6 @@
 local cave = {}
 
-local rooms = { 'depths', 'twisting-tunnel', 'stalactite-cavern' }
+local rooms = { 'depths', 'twisting-tunnel', 'stalactite-cavern', 'trunnel-of-trials', 'the-bridge', 'winding-road' }
 
 local function lerp(x, y, t)
   return x + (y - x) * t
@@ -83,6 +83,7 @@ function cave:init()
   self.frustum = lovr.math.newMat4()
   self.mesh = lovr.graphics.newMesh({}, 1, 'points', 'static')
   self.rooms = { active = {} }
+  self.emitters = require('tools/breadcrumb-data').drips
 
   for i = 1, #rooms do
     self:load(i)
@@ -110,6 +111,16 @@ function cave:init()
   self.intro = lovr.audio.newSource('assets/intro.ogg', 'static')
   self.ambience = lovr.audio.newSource('assets/cave.ogg', 'static')
   self.ambience:setLooping(true)
+  self.driploop = lovr.audio.newSource('assets/driploop.ogg', 'static')
+  self.driploop:setLooping(true)
+  self.drips = {
+    lovr.audio.newSource('assets/drip1.ogg', 'static'),
+    lovr.audio.newSource('assets/drip2.ogg', 'static'),
+    lovr.audio.newSource('assets/drip3.ogg', 'static'),
+    lovr.audio.newSource('assets/drip4.ogg', 'static'),
+    lovr.audio.newSource('assets/drip5.ogg', 'static'),
+    lovr.audio.newSource('assets/drip6.ogg', 'static')
+  }
 end
 
 function cave:update(dt)
@@ -130,6 +141,10 @@ function cave:update(dt)
   if not self.intro:isPlaying() and not self.ambience:isPlaying() then
     self.ambience:play()
   end
+
+  local hx, hy, hz = head:unpack()
+  local incavern = testSphereBox(self.rooms[3].octree[1].aabb, hx, hy, hz, .1)
+  self:playCavernSounds(incavern, dt)
 
   -- placeholder for when player escapes the cave
   for i, hand in ipairs(lovr.headset.getHands()) do
@@ -461,6 +476,23 @@ function cave:updateFrustum()
 end
 
 function cave:navigate()
+end
+
+function cave:playCavernSounds(incavern, dt)
+  if incavern then
+    self.driploop:play()
+    for i,e in ipairs(self.emitters) do
+      local playchance = lovr.math.random()
+      if playchance < (dt / 80) then
+        local sound = self.drips[lovr.math.random(1, 6)]
+        local pos = { e[1] + world.x, e[2] + world.y, e[3] + world.z }
+        sound:setPosition(unpack(pos))
+        sound:play()
+      end
+    end
+  else
+    self.driploop:stop()
+  end
 end
 
 return cave

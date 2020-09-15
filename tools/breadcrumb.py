@@ -18,6 +18,15 @@ for ob in bpy.context.selected_objects:
         local_bbox_center = 0.125 * sum((Vector(b) for b in ob.bound_box), Vector())
         global_bbox_center = ob.matrix_world @ local_bbox_center
         positions += '{ ' + '%f,%f,%f' % global_bbox_center[:] + ' },'
+positions += ' },'
+
+
+positions += ' drips = { '
+for ob in bpy.context.selected_objects:
+    if 'drip' in ob.name:
+        local_bbox_center = 0.125 * sum((Vector(b) for b in ob.bound_box), Vector())
+        global_bbox_center = ob.matrix_world @ local_bbox_center
+        positions += '{ ' + '%f,%f,%f' % global_bbox_center[:] + ' },'
 positions += ' }'
 
 positions += ' }'

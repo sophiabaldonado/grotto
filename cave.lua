@@ -29,7 +29,7 @@ local function getDetail(aabb, x, y, z)
   local by = clamp(y, miny, maxy)
   local bz = clamp(z, minz, maxz)
   local distance = math.sqrt((bx - x) ^ 2, (by - y) ^ 2, (bz - z) ^ 2)
-  local lod = math.max(distance / 2 - 1.25, 0) -- usually it's -1, -1.25 is conservative
+  local lod = math.max(distance / 4 - 1.25, 0) -- usually it's -1, -1.25 is conservative
   return 1 / (2 ^ lod)
 end
 
@@ -200,7 +200,7 @@ function cave:update(dt)
 
         if node.leaf then
           for i = 1, #node.nav do
-            local triangle = room.nav[node.nav[i]]
+            local triangle = room.navmesh[node.nav[i] + 1]
             local hit, t = raycast(origin, direction, triangle)
             if hit and t < d then
               target:set(hit)
@@ -277,11 +277,14 @@ function cave:draw()
 
   lovr.graphics.setColorMask()
   lovr.graphics.setShader(self.occlusion)
+  lovr.graphics.setDepthNudge(5, 5)
   for room in pairs(self.rooms.active) do
     if canSee(self.frustum, room.octree[1].aabb) then
       room.mesh:draw()
     end
   end
+  lovr.graphics.flush()
+  lovr.graphics.setDepthNudge(0, 0)
   lovr.graphics.setColorMask(true, true, true, true)
   lovr.graphics.setShader(self.shader)
 
@@ -477,9 +480,6 @@ function cave:updateFrustum()
   local V = mat4(-world.x, -world.y, -world.z):mul(view):translate(0, 0, zoffset):invert()
   self.frustum:set(2 * idx, 0, 0, 0, 0, 2 * idy, 0, 0, sx * idx, sy * idy, -f * idz, -1, 0, 0, -f * n * idz, 0)
   self.frustum:mul(V)
-end
-
-function cave:navigate()
 end
 
 return cave

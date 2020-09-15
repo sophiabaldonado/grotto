@@ -12,8 +12,6 @@
 
 #define MULTIPLIER 4
 
-static uint32_t* navfaces;
-
 static float* points;
 static float* weights;
 static float* noiseness;
@@ -34,6 +32,8 @@ struct stl {
   } faces[];
 };
 #pragma pack(pop)
+
+static struct stl* navData;
 
 // RNG
 static uint64_t wangHash64(uint64_t key) {
@@ -303,7 +303,36 @@ static void octreeify(uint32_t parent, float center[3], float size[3], uint32_t 
     uint32_t count = node->count;
 
     if (node->count > 0 && !recurse) {
-      fprintf(handle, "    { key = %d, start = %d, count = %d, aabb = { %f, %f, %f, %f, %f, %f }, leaf = true },\n", key, start, count, minx, maxx, miny, maxy, minz, maxz);
+      fprintf(handle, "    { key = %d, start = %d, count = %d, aabb = { %f, %f, %f, %f, %f, %f }, leaf = true, nav = { ", key, start, count, minx, maxx, miny, maxy, minz, maxz);
+      for (uint32_t q = 0; q < navData->count; q++) {
+        float tminx, tmaxx, tminy, tmaxy, tminz, tmaxz;
+        tminx = FLT_MAX; tmaxx = FLT_MIN;
+        tminy = FLT_MAX; tmaxy = FLT_MIN;
+        tminz = FLT_MAX; tmaxz = FLT_MIN;
+
+        for (uint32_t ii = 0; ii < 3; ii++) {
+          tminx = MIN(tminx, navData->faces[q].vertices[ii][0]);
+          tmaxx = MAX(tmaxx, navData->faces[q].vertices[ii][0]);
+          tminy = MIN(tminy, navData->faces[q].vertices[ii][1]);
+          tmaxy = MAX(tmaxy, navData->faces[q].vertices[ii][1]);
+          tminz = MIN(tminz, navData->faces[q].vertices[ii][2]);
+          tmaxz = MAX(tmaxz, navData->faces[q].vertices[ii][2]);
+        }
+
+        int intersect = (
+          minx < tmaxx &&
+          maxx > tminx &&
+          miny < tmaxy &&
+          maxy > tminy &&
+          minz < tmaxz &&
+          maxz > tminz
+        );
+
+        if (intersect) {
+          fprintf(handle, "%d, ", q);
+        }
+      }
+      fprintf(handle, " }},\n");
     } else {
       fprintf(handle, "    { key = %d, aabb = { %f, %f, %f, %f, %f, %f } },\n", key, minx, maxx, miny, maxy, minz, maxz);
     }
@@ -315,13 +344,13 @@ static void octreeify(uint32_t parent, float center[3], float size[3], uint32_t 
 }
 
 int main(int argc, char** argv) {
-  if (argc < 3) {
-    printf("Usage: %s [model.stl] [points/meter]\n", argv[0]);
+  if (argc < 4) {
+    printf("Usage: %s [model.stl] [nav.stl] [points/meter]\n", argv[0]);
     return 1;
   }
 
   size_t length = strlen(argv[1]);
-  float density = strtof(argv[2], NULL);
+  float density = strtof(argv[3], NULL);
   seed = time(NULL);
   setvbuf(stdout, NULL, _IONBF, 0);
 
@@ -345,6 +374,25 @@ int main(int argc, char** argv) {
 
   fclose(file);
 
+  // Read navmesh
+
+  file = fopen(argv[2], "rb");
+  if (!file) {
+    printf("Can't open %s\n", argv[2]);
+    return 1;
+  }
+
+  fseek(file, 0, SEEK_END);
+  size = ftell(file);
+  fseek(file, 0, SEEK_SET);
+
+  navData = calloc(1, size);
+  if (fread(navData, 1, size, file) < size) {
+    printf("Can't read %s\n", argv[2]);
+  }
+
+  fclose(file);
+
   // Compute the area of the mesh
   // For each triangle, the area is the length of the cross product of 2 of its vectors divided by 2
   // Sum the area of all the triangles to get the total area
@@ -354,8 +402,6 @@ int main(int argc, char** argv) {
   float max[3] = { FLT_MIN, FLT_MIN, FLT_MIN };
   float totalArea = 0.f;
   float* areas = malloc(data->count * sizeof(float));
-  navfaces = malloc(data->count * sizeof(uint32_t));
-  uint32_t navfaceCount = 0;
   for (uint32_t i = 0; i < data->count; i++) {
     float* v[3] = { data->faces[i].vertices[0], data->faces[i].vertices[1], data->faces[i].vertices[2] };
     float p[3] = { v[1][0] - v[0][0], v[1][1] - v[0][1], v[1][2] - v[0][2] };
@@ -372,10 +418,6 @@ int main(int argc, char** argv) {
       max[j] = MAX(max[j], v[1][j]);
       max[j] = MAX(max[j], v[2][j]);
     }
-
-    if (data->faces[i].normal[1] > .7) {
-      navfaces[navfaceCount++] = i;
-    }
   }
   float bounds[3] = { max[0] - min[0], max[1] - min[1], max[2] - min[2] };
   float center[3] = { (min[0] + max[0]) / 2.f, (min[1] + max[1]) / 2.f, (min[2] + max[2]) / 2.f };
@@ -384,7 +426,6 @@ int main(int argc, char** argv) {
   uint32_t n = count * MULTIPLIER;
 
   printf("Count: %d\n", count);
-  printf("Navfaces: %d\n", navfaceCount);
   printf("Volume: %fm3\n", volume);
   printf("Surface Area: %fm2\n", totalArea);
   printf("Density: %fs/m\n", count / totalArea);
@@ -519,8 +560,8 @@ int main(int argc, char** argv) {
   octreeify(0x1, center, halfBounds, 0, count, meta);
   fputs("  },\n", meta);
   fputs("  navmesh = {\n", meta);
-  for (uint32_t i = 0; i < navfaceCount; i++) {
-    float* v = &data->faces[navfaces[i]].vertices[0][0];
+  for (uint32_t i = 0; i < navData->count; i++) {
+    float* v = &navData->faces[i].vertices[0][0];
     fprintf(meta, "    { %f, %f, %f, %f, %f, %f, %f, %f, %f },\n", v[0], v[1], v[2], v[3], v[4], v[5], v[6], v[7], v[8]);
   }
   fputs("  }\n}\n", meta);

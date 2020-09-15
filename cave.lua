@@ -188,14 +188,33 @@ function cave:update(dt)
     local target = vec3()
     local origin = self.blinker.source + delta * 2
     local direction = vec3(0, -1, 0)
+    local ox, _, oz = origin:unpack()
     for room in pairs(self.rooms.active) do
-      for i, triangle in ipairs(room.navmesh) do
-        local hit, t = raycast(origin, direction, triangle)
-        if hit and t < d then
-          target:set(hit)
-          d = t
+      local function visit(node)
+        if not node then return end
+
+        -- XZ aabb test
+        if ox < node.aabb[1] or ox > node.aabb[2] or oz < node.aabb[5] or oz > node.aabb[6] then
+          return
+        end
+
+        if node.leaf then
+          for i = 1, #node.nav do
+            local triangle = room.nav[node.nav[i]]
+            local hit, t = raycast(origin, direction, triangle)
+            if hit and t < d then
+              target:set(hit)
+              d = t
+            end
+          end
+        else
+          for child = node.key * 8, node.key * 8 + 7 do
+            visit(room.octree.lookup[child])
+          end
         end
       end
+
+      visit(room.octree[1])
     end
 
     if d ~= math.huge and d < 3 then

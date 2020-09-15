@@ -1,6 +1,6 @@
 #ifdef VERTEX
   vec4 position(mat4 projection, mat4 transform, vec4 vertex) {
-    vertex.xyz -= lovrNormal * .005;
+    //vertex.xyz -= lovrNormal * .001;
     return projection * transform * vertex;
   }
 #endif

@@ -7,14 +7,14 @@ io.stdout:setvbuf('no')
 function lovr.load()
   lovr.headset.setClipDistance(0.1, 100)
   lovr.graphics.setCullingEnabled(true)
-  lovr.graphics.setBlendMode()
   menu:init()
   cave:init()
   forest:init()
   currentScene = 'menu'
   hands:init()
   swimspeed = 1.5
-  world = { x= 7.72301, z = -31.22, y = 1.00709 }
+  --world = { x= 7.72301, z = -31.22, y = 1.00709 }
+  world = { x = 5.66936, z = -23.4027, y = 0.752744 }
 end
 
 function lovr.update(dt)

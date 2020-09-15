@@ -2,6 +2,14 @@ local cave = {}
 
 local rooms = { 'depths', 'twisting-tunnel', 'stalactite-cavern' }
 
+local function lerp(x, y, t)
+  return x + (y - x) * t
+end
+
+local function flerp(x, y, t, dt)
+  return lerp(y, x, math.exp(-t * dt))
+end
+
 local function clamp(x, min, max)
   return math.max(min, math.min(max, x))
 end
@@ -87,6 +95,15 @@ function cave:init()
   self.shader = lovr.graphics.newShader('assets/point.glsl', 'assets/point.glsl')
   self.occlusion = lovr.graphics.newShader('assets/occlusion.glsl', 'assets/occlusion.glsl')
 
+  self.blinker = {
+    active = false,
+    hand = nil,
+    prev = lovr.math.newVec3(),
+    source = lovr.math.newVec3(),
+    target = lovr.math.newVec3(),
+    cursor = lovr.math.newVec3()
+  }
+
   self.ambience = lovr.audio.newSource('assets/cave.ogg', 'static')
   self.ambience:setLooping(true)
 end
@@ -112,10 +129,108 @@ function cave:update(dt)
       self.startexit = true
     end
   end
+
+  local v1, v2, v3 = vec3(), vec3(), vec3()
+  local e1, e2 = vec3(), vec3()
+  local s = vec3()
+  local function raycast(origin, direction, triangle)
+    local epsilon = 1e-6
+    local x1, y1, z1, x2, y2, z2, x3, y3, z3 = unpack(triangle)
+    v1:set(x1, y1, z1)
+    v2:set(x2, y2, z2)
+    v3:set(x3, y3, z3)
+    e1:set(v2):sub(v1)
+    e2:set(v3):sub(v1)
+    local h = vec3(direction):cross(e2)
+    local a = e1:dot(h)
+    if a > -epsilon and a < epsilon then
+      return nil
+    end
+    local f = 1 / a
+    s:set(origin):sub(v1)
+    local u = f * s:dot(h)
+    if u < 0 or u > 1 then
+      return nil
+    end
+    local q = s:cross(e1)
+    local v = f * direction:dot(q)
+    if v < 0 or u + v > 1 then
+      return nil
+    end
+    local t = f * e2:dot(q)
+    if t > epsilon then
+      return vec3(direction):mul(t):add(origin), t
+    end
+  end
+
+  for i, hand in ipairs({ 'left', 'right' }) do
+    if lovr.headset.wasPressed(hand, 'trigger') then
+      self.blinker.hand = hand
+      self.blinker.active = true
+      self.blinker.source:set(lovr.headset.getPosition(hand)):sub(world)
+      self.blinker.prev:set(self.blinker.source)
+    end
+  end
+
+  if self.blinker.active and lovr.headset.isDown(self.blinker.hand, 'trigger') then
+    local position = vec3(lovr.headset.getPosition(self.blinker.hand)):sub(world)
+    local delta = position - self.blinker.prev
+
+    --local delta = self.blinker.source - vec3(lovr.headset.getPosition(self.blinker.hand)):sub(world)
+
+    local d = math.huge
+    local target = vec3()
+    local origin = self.blinker.source + delta * 2
+    local direction = vec3(0, -1, 0)
+    for room in pairs(self.rooms.active) do
+      for i, triangle in ipairs(room.navmesh) do
+        local hit, t = raycast(origin, direction, triangle)
+        if hit and t < d then
+          target:set(hit)
+          d = t
+        end
+      end
+    end
+
+    if d ~= math.huge and d < 3 then
+      self.blinker.target:set(target)
+      self.blinker.source:set(origin)
+    end
+
+    if lovr.headset.wasPressed(self.blinker.hand, 'trigger') then
+      self.blinker.cursor:set(self.blinker.target)
+    else
+      local cx, cy, cz = self.blinker.cursor:unpack()
+      local tx, ty, tz = self.blinker.target:unpack()
+      cx = flerp(cx, tx, 15, dt)
+      cy = flerp(cy, ty, 15, dt)
+      cz = flerp(cz, tz, 15, dt)
+      self.blinker.cursor:set(cx, cy, cz)
+    end
+
+    self.blinker.prev:set(position)
+  else
+    if self.blinker.active then
+      local delta = vec3(lovr.headset.getPosition())
+      local dx, _, dz = delta:unpack()
+      local tx, ty, tz = self.blinker.target:unpack()
+      local w = _G.world
+      w.x, w.y, w.z = -tx + dx, -ty, -tz + dz
+    end
+    self.blinker.active = false
+  end
 end
 
 function cave:draw()
   if not self.active then return end
+
+  if self.blinker.active then
+    lovr.graphics.setColor(.5, .5, .5)
+    local tx, ty, tz = self.blinker.target:unpack()
+    local cx, cy, cz = self.blinker.cursor:unpack()
+    lovr.graphics.circle('line', tx, ty, tz, .015, -math.pi / 2, 1, 0, 0)
+    lovr.graphics.circle('fill', cx, cy, cz, .01, -math.pi / 2, 1, 0, 0)
+  end
 
   local draws = {}
 
@@ -178,29 +293,35 @@ function cave:exit()
 end
 
 function cave:load(index)
-  local room = {}
-  local root = 'assets/' .. rooms[index]
-  local blob = lovr.filesystem.newBlob(root .. '.bin')
-  local count = blob:getSize() / 16
-  local sizeFormat = { sizes = { 'float', count } }
-  local pointFormat = { points = { 'vec4', count } }
-  local octree = require(root)
+  do
+    local room = {}
+    local root = 'assets/' .. rooms[index]
+    local blob = lovr.filesystem.newBlob(root .. '.bin')
+    local count = blob:getSize() / 16
+    local sizeFormat = { sizes = { 'float', count } }
+    local pointFormat = { points = { 'vec4', count } }
+    local octree = require(root).octree
+    local navmesh = require(root).navmesh
 
-  octree.lookup = {}
-  for i = 1, #octree do
-    octree.lookup[octree[i].key] = octree[i]
-    octree[i].revealed = false
+    octree.lookup = {}
+    for i = 1, #octree do
+      octree.lookup[octree[i].key] = octree[i]
+      octree[i].revealed = false
+    end
+
+    room.count = count
+    room.octree = octree
+    room.navmesh = navmesh
+    room.mesh = lovr.graphics.newModel(root .. '.obj')
+    room.sizes = lovr.graphics.newShaderBlock('compute', sizeFormat, { usage = 'static', zero = true })
+    room.points = lovr.graphics.newShaderBlock('compute', pointFormat, { usage = 'static' })
+    room.points:send('points', blob)
+    blob:release()
+
+    self.rooms[index] = room
   end
 
-  room.count = count
-  room.octree = octree
-  room.mesh = lovr.graphics.newModel(root .. '.obj')
-  room.sizes = lovr.graphics.newShaderBlock('compute', sizeFormat, { usage = 'static', zero = true })
-  room.points = lovr.graphics.newShaderBlock('compute', pointFormat, { usage = 'static' })
-  room.points:send('points', blob)
-  blob:release()
-
-  self.rooms[index] = room
+  collectgarbage()
 end
 
 function cave:checkRooms(dt, head)
@@ -231,9 +352,16 @@ function cave:feel(dt, head, left, right)
   local hx, hy, hz = head:unpack()
   local lx, ly, lz = left:unpack()
   local rx, ry, rz = right:unpack()
+  local cx, cy, cz = self.blinker.cursor:unpack()
   local r2 = .3 * .3
 
-  self.feeler:send('lights', { head, left, right })
+  local lights = { { hx, hy, hz }, { lx, ly, lz }, { rx, ry, rz } }
+
+  if self.blinker.active then
+    lights[4] = { cx, cy, cz }
+  end
+
+  self.feeler:send('lights', lights)
   self.feeler:send('dt', dt)
 
   for room in pairs(self.rooms.active) do
@@ -243,6 +371,7 @@ function cave:feel(dt, head, left, right)
       local touched = testSphereBox(node.aabb, hx, hy, hz, r2)
       touched = touched or testSphereBox(node.aabb, lx, ly, lz, r2)
       touched = touched or testSphereBox(node.aabb, rx, ry, rz, r2)
+      touched = touched or testSphereBox(node.aabb, cx, cy, cz, r2)
       if not touched then return end
 
       node.revealed = true
@@ -303,6 +432,9 @@ function cave:updateFrustum()
   local V = mat4(-world.x, -world.y, -world.z):mul(view):translate(0, 0, zoffset):invert()
   self.frustum:set(2 * idx, 0, 0, 0, 0, 2 * idy, 0, 0, sx * idx, sy * idy, -f * idz, -1, 0, 0, -f * n * idz, 0)
   self.frustum:mul(V)
+end
+
+function cave:navigate()
 end
 
 return cave

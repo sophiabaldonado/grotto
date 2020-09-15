@@ -15,22 +15,9 @@ function lovr.load()
   hands:init()
   swimspeed = 1.5
   world = { x= 7.72301, z = -31.22, y = 1.00709 }
-  last = { x = 0, z = 0 }
 end
 
 function lovr.update(dt)
-  for i, hand in ipairs(lovr.headset.getHands()) do
-    -- todo: make work for both hands
-    if (hand == 'hand/left') then
-      local x, y, z = lovr.headset.getPose(hand)
-      if (lovr.headset.isDown(hand, 'trigger')) then
-        move(x, z)
-      end
-      last.x = x
-      last.z = z
-    end
-  end
-
   hands:update(dt)
 
   if currentScene == 'menu' then
@@ -57,11 +44,6 @@ function lovr.draw()
   lovr.graphics.translate(world.x, world.y, world.z)
   drawCurrentScene()
   lovr.graphics.pop()
-end
-
-function move(x, z)
-  world.x = world.x - (last.x - x) * swimspeed
-  world.z = world.z - (last.z - z) * swimspeed
 end
 
 function drawCurrentScene()

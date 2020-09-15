@@ -109,7 +109,7 @@ function cave:init()
   }
 
   self.intro = lovr.audio.newSource('assets/intro.ogg', 'static')
-  self.ambience = lovr.audio.newSource('assets/cave.ogg', 'static')
+  self.ambience = lovr.audio.newSource('assets/cave.ogg', 'stream')
   self.ambience:setLooping(true)
   self.drips = {
     lovr.audio.newSource('assets/drip1.ogg', 'static'),
@@ -119,6 +119,16 @@ function cave:init()
     lovr.audio.newSource('assets/drip5.ogg', 'static'),
     lovr.audio.newSource('assets/drip6.ogg', 'static')
   }
+
+  self.lights = {}
+  local crystals = require('tools/breadcrumb-data').crystals
+  local mushrooms = require('tools/breadcrumb-data').mushrooms
+  for i = 1, #crystals do
+    table.insert(self.lights, { health = .5, position = crystals[i], crystal = true })
+  end
+  for i = 1, #mushrooms do
+    table.insert(self.lights, { health = .5, position = mushrooms[i], mushroom = true })
+  end
 end
 
 function cave:update(dt)
@@ -290,14 +300,14 @@ function cave:draw()
 
   lovr.graphics.setColorMask()
   lovr.graphics.setShader(self.occlusion)
-  -- lovr.graphics.setDepthNudge(5, 5)
+  if lovr.graphics.setDepthNudge then lovr.graphics.setDepthNudge(5, 5) end
   for room in pairs(self.rooms.active) do
     if canSee(self.frustum, room.octree[1].aabb) then
       room.mesh:draw()
     end
   end
   lovr.graphics.flush()
-  -- lovr.graphics.setDepthNudge(0, 0)
+  if lovr.graphics.setDepthNudge then lovr.graphics.setDepthNudge(0, 0) end
   lovr.graphics.setColorMask(true, true, true, true)
   lovr.graphics.setShader(self.shader)
 
@@ -420,6 +430,25 @@ function cave:feel(dt, head, left, right)
 
   if self.blinker.active then
     lights[4] = { cx, cy, cz }
+  end
+
+  if self.lights[1] then
+    lights[4] = self.lights[1].position
+    self.lights[1].health = self.lights[1].health - dt
+    if self.lights[1].health <= 0 then
+      self.lights[1] = nil
+    end
+  else
+    for i, light in pairs(self.lights) do
+      if head:distance(light.position) < .5 then
+        lights[4] = light.position
+        light.health = light.health - dt
+        if light.health <= 0 then
+          self.lights[i] = nil
+          break
+        end
+      end
+    end
   end
 
   self.feeler:send('lights', lights)

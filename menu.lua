@@ -25,11 +25,14 @@ function menu:update(dt)
 end
 
 function menu:draw()
+  lovr.graphics.push()
+  lovr.graphics.origin()
   lovr.graphics.setColor(1, 1, 1, self.logoFade)
-  lovr.graphics.circle('fill', -.065, 1.5, -2, self.dotscale)
+  lovr.graphics.circle('fill', -.065, 1.5, -1.99, self.dotscale)
   lovr.graphics.plane(self.logo, 0, 1.5, -2, self.logoTex:getWidth() * .002, self.logoTex:getHeight() * .002)
   lovr.graphics.setColor(1, 1, 1, self.startFade)
   lovr.graphics.print('Hold Both Triggers to Start', 0, 1, -2, .05)
+  lovr.graphics.pop()
 end
 
 function menu:countdown(dt)

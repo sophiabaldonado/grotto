@@ -436,7 +436,7 @@ function cave:feel(dt, head, left, right)
   end
 
   for i, light in pairs(self.lights) do
-    if left:distance(light.position) < .5 or right:distance(light.position) < .5 then
+    if i == 1 or left:distance(light.position) < .5 or right:distance(light.position) < .5 then
       lights[4] = light.position
       light.health = light.health - dt
       if light.health <= 0 then

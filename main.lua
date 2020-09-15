@@ -45,6 +45,7 @@ function lovr.draw()
   end
   drawCurrentScene()
   lovr.graphics.pop()
+  lovr.graphics.setColor(1, 1, 1)
 end
 
 function drawCurrentScene()

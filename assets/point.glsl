@@ -21,7 +21,7 @@
       return vec4(0.);
     }
     vec4 p = lovrProjection * lovrView * vec4(point.xyz + world, 1.);
-    alpha = .1 * sizes[gl_VertexID] * threshold;
+    alpha = .5 * sizes[gl_VertexID] * threshold;
     gl_PointSize = 3. / p.w * sizes[gl_VertexID];
     return p;
   }

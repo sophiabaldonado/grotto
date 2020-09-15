@@ -158,6 +158,7 @@ function cave:draw()
       self.shader:sendBlock('Sizes', room.sizes)
       self.mesh:setMultidraws(draws)
       self.mesh:draw()
+      lovr.graphics.flush()
     end
   end
 

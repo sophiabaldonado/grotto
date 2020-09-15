@@ -87,6 +87,7 @@ function cave:init()
   self.shader = lovr.graphics.newShader('assets/point.glsl', 'assets/point.glsl')
   self.occlusion = lovr.graphics.newShader('assets/occlusion.glsl', 'assets/occlusion.glsl')
 
+  self.intro = lovr.audio.newSource('assets/intro.ogg', 'static')
   self.ambience = lovr.audio.newSource('assets/cave.ogg', 'static')
   self.ambience:setLooping(true)
 end
@@ -105,6 +106,10 @@ function cave:update(dt)
   self:checkRooms(dt, head)
   self:feel(dt, head, left, right)
   self:updateFrustum()
+
+  if not self.intro:isPlaying() and not self.ambience:isPlaying() then
+    self.ambience:play()
+  end
 
   -- placeholder for when player escapes the cave
   for i, hand in ipairs(lovr.headset.getHands()) do
@@ -167,7 +172,7 @@ end
 
 function cave:start()
   self.active = true
-  self.ambience:play()
+  self.intro:play()
 end
 
 function cave:exit()
@@ -198,7 +203,7 @@ function cave:load(index)
   room.sizes = lovr.graphics.newShaderBlock('compute', sizeFormat, { usage = 'static', zero = true })
   room.points = lovr.graphics.newShaderBlock('compute', pointFormat, { usage = 'static' })
   room.points:send('points', blob)
-  blob:release()
+  -- blob:release()
 
   self.rooms[index] = room
 end
